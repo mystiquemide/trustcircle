@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Circles - metadata only, read public, write authenticated
+    match /circles/{document=**} {
+      allow read: if true; // Public read
+      allow write: if request.auth != null;
+    }
+
+    // Invites - anyone can read active invites, authenticated can create
+    match /invites/{document=**} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    // Users - read/write restricted to document owner only
+    match /users/{walletAddress} {
+      allow read: if request.auth != null && request.auth.uid == walletAddress;
+      allow write: if request.auth != null && request.auth.uid == walletAddress;
+      
+      // Subcollection for notification history
+      match /notifications/{document=**} {
+        allow read, write: if request.auth.uid == walletAddress;
+      }
+    }
+
+  }
+}
