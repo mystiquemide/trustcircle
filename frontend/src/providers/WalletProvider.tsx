@@ -16,6 +16,7 @@ interface WalletContextValue {
   isInitializing: boolean;
   hasProvider: boolean;
   connect: () => Promise<string>;
+  disconnect: () => void;
 }
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -67,6 +68,12 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsConnecting(false);
     }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    setAddress(null);
+    setChainId(null);
+    window.localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   useEffect(() => {
@@ -153,8 +160,9 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
       isInitializing,
       hasProvider,
       connect,
+      disconnect,
     }),
-    [address, chainId, isConnecting, isInitializing, hasProvider, connect]
+    [address, chainId, isConnecting, isInitializing, hasProvider, connect, disconnect]
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

@@ -7,6 +7,7 @@ import {
   ClockIcon,
   CurrencyDollarIcon,
   ExclamationTriangleIcon,
+  LinkIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { TRUST_CIRCLE_ABI } from '../contracts/TrustCircle';
@@ -18,6 +19,7 @@ import { formatCycleDuration, formatTimeLeft, formatUsd } from '../lib/format';
 import { AddressDisplay, Button, Card, ConfirmDialog, StatusBadge } from '../components/common';
 import { LoadingSkeleton, EmptyState } from '../components/feedback';
 import { useToast } from '../providers/ToastProvider';
+import { useWalletContext } from '../providers/WalletProvider';
 
 interface CircleData {
   name: string;
@@ -37,6 +39,7 @@ export default function CircleDetail() {
   const { circleId = '' } = useParams<{ circleId: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { address: walletAddress } = useWalletContext();
 
   const [circleAddress, setCircleAddress] = useState<string>('');
   const [circleData, setCircleData] = useState<CircleData | null>(null);
@@ -49,6 +52,8 @@ export default function CircleDetail() {
   const [showConfirmContribution, setShowConfirmContribution] = useState(false);
   const [showConfirmDistribute, setShowConfirmDistribute] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const [inviteLink, setInviteLink] = useState<string>('');
+  const [generatingInvite, setGeneratingInvite] = useState(false);
   const ethereum = window.ethereum;
 
   useEffect(() => {
@@ -383,6 +388,36 @@ export default function CircleDetail() {
     }
   };
 
+  const handleGenerateInvite = async () => {
+    if (!circleAddress) return;
+    
+    setGeneratingInvite(true);
+    try {
+      const response = await api.generateInviteCode(circleAddress, 720);
+      const inviteCode = response.shortCode || response.inviteCode;
+      const link = `${window.location.origin}/join/${inviteCode}`;
+      setInviteLink(link);
+      showToast('Invite link generated!', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate invite link.';
+      showToast(message, 'error');
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const copyInviteLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      showToast('Invite link copied to clipboard!', 'success');
+    } catch {
+      showToast('Failed to copy link.', 'error');
+    }
+  };
+
+  const isOrganizer = walletAddress?.toLowerCase() === circleData?.organizer?.toLowerCase();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -481,6 +516,28 @@ export default function CircleDetail() {
                     Distribute Payout
                   </Button>
                 ) : null}
+
+                {circleData.status === 'Pending' && isOrganizer && (
+                  <div className="space-y-2">
+                    <Button fullWidth onClick={handleGenerateInvite} loading={generatingInvite}>
+                      <LinkIcon className="h-4 w-4" />
+                      Generate Invite Link
+                    </Button>
+                    {inviteLink && (
+                      <div className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 p-3 dark:border-primary-700/60 dark:bg-primary-950/40">
+                        <input
+                          type="text"
+                          readOnly
+                          value={inviteLink}
+                          className="flex-1 truncate bg-transparent text-sm text-primary-800 dark:text-primary-200"
+                        />
+                        <Button variant="ghost" size="sm" onClick={copyInviteLink}>
+                          Copy
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </Card>
           </section>

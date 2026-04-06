@@ -1,5 +1,5 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
-import { Bars3Icon } from '@heroicons/react/24/outline';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Bars3Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { arcTestnet } from '../../lib/arcChain';
 import { cn } from '../../lib/cn';
@@ -25,8 +25,14 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   );
 
 export const Layout = () => {
-  const { chainId } = useWalletContext();
+  const { chainId, isConnected, disconnect } = useWalletContext();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleDisconnect = () => {
+    disconnect();
+    navigate('/');
+  };
 
   return (
     <div className="min-h-screen">
@@ -47,7 +53,18 @@ export const Layout = () => {
 
           <div className="hidden items-center gap-3 md:flex">
             <DarkModeToggle />
-            <ConnectWalletButton size="sm" />
+            {isConnected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+              >
+                <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
+                Disconnect
+              </Button>
+            ) : (
+              <ConnectWalletButton size="sm" />
+            )}
           </div>
 
           <Button
@@ -76,7 +93,22 @@ export const Layout = () => {
             </nav>
             <div className="mt-3 flex items-center justify-between gap-3">
               <DarkModeToggle />
-              <ConnectWalletButton size="sm" fullWidth />
+              {isConnected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    handleDisconnect();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
+                  Disconnect
+                </Button>
+              ) : (
+                <ConnectWalletButton size="sm" fullWidth />
+              )}
             </div>
           </div>
         ) : null}
