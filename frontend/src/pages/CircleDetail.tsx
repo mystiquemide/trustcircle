@@ -394,7 +394,7 @@ export default function CircleDetail() {
     setGeneratingInvite(true);
     try {
       const response = await api.generateInviteCode(circleAddress, 720);
-      const inviteCode = response.shortCode || response.inviteCode;
+      const inviteCode = response.data?.shortCode;
       const link = `${window.location.origin}/join/${inviteCode}`;
       setInviteLink(link);
       showToast('Invite link generated!', 'success');
