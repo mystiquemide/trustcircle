@@ -3,6 +3,7 @@ import { Bars3Icon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outlin
 import { useState } from 'react';
 import { arcTestnet } from '../../lib/arcChain';
 import { cn } from '../../lib/cn';
+import { truncateAddress } from '../../lib/format';
 import { useWalletContext } from '../../providers/WalletProvider';
 import { Button } from '../common/Button';
 import { Logo } from '../common/Logo';
@@ -25,7 +26,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   );
 
 export const Layout = () => {
-  const { chainId, isConnected, disconnect } = useWalletContext();
+  const { chainId, isConnected, disconnect, address } = useWalletContext();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -53,15 +54,14 @@ export const Layout = () => {
 
           <div className="hidden items-center gap-3 md:flex">
             <DarkModeToggle />
-            {isConnected ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDisconnect}
-              >
-                <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
-                Disconnect
-              </Button>
+            {isConnected && address ? (
+              <>
+                <span className="text-sm font-mono text-muted">{truncateAddress(address)}</span>
+                <Button variant="outline" size="sm" onClick={handleDisconnect}>
+                  <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
+                  Disconnect
+                </Button>
+              </>
             ) : (
               <ConnectWalletButton size="sm" />
             )}
@@ -93,19 +93,22 @@ export const Layout = () => {
             </nav>
             <div className="mt-3 flex items-center justify-between gap-3">
               <DarkModeToggle />
-              {isConnected ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  fullWidth
-                  onClick={() => {
-                    handleDisconnect();
-                    setMenuOpen(false);
-                  }}
-                >
-                  <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
-                  Disconnect
-                </Button>
+              {isConnected && address ? (
+                <div className="flex flex-1 items-center gap-2">
+                  <span className="text-sm font-mono text-muted">{truncateAddress(address)}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    fullWidth
+                    onClick={() => {
+                      handleDisconnect();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <ArrowRightOnRectangleIcon className="mr-1.5 h-4 w-4" />
+                    Disconnect
+                  </Button>
+                </div>
               ) : (
                 <ConnectWalletButton size="sm" fullWidth />
               )}
