@@ -205,3 +205,4 @@ Testing:
 - Apr 4, 2026: PHASE 7 EXECUTED (Mobile Responsive Audit): Applied 22 UX fixes across 13 files to ensure perfect rendering on 320px screens.
 - Apr 4, 2026: MVP V1 COMPLETED & DEPLOYED: Frontend successfully deployed to Vercel. Codebase fully initialized and pushed to GitHub. All 8 phases officially closed out.
 - Apr 6, 2026: FEATURE ADDITIONS: Added disconnect wallet button in Layout header (navigates to landing page). Added generate invite link functionality for pending circles (organizer-only) in CircleDetail page.
+- Apr 6, 2026 (continued): BUG FIX: Fixed invite code response path in CircleDetail - now uses correct API response path and local invite code fallback format (same as circle creation).
