@@ -16,6 +16,7 @@ import { CONTRACT_ADDRESSES, TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/a
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
 import { formatCycleDuration, formatTimeLeft, formatUsd } from '../lib/format';
+import { buildLocalInviteCode } from '../lib/invites';
 import { AddressDisplay, Button, Card, ConfirmDialog, StatusBadge } from '../components/common';
 import { LoadingSkeleton, EmptyState } from '../components/feedback';
 import { useToast } from '../providers/ToastProvider';
@@ -389,18 +390,25 @@ export default function CircleDetail() {
   };
 
   const handleGenerateInvite = async () => {
-    if (!circleAddress) return;
+    if (!circleAddress || !circleId) return;
     
     setGeneratingInvite(true);
     try {
       const response = await api.generateInviteCode(circleAddress, 720);
-      const inviteCode = response.data?.shortCode;
-      const link = `${window.location.origin}/join/${inviteCode}`;
-      setInviteLink(link);
-      showToast('Invite link generated!', 'success');
+      const inviteCode = response.shortCode || response.inviteCode;
+      const link = inviteCode ? `${window.location.origin}/join/${inviteCode}` : '';
+      
+      if (inviteCode) {
+        setInviteLink(link);
+        showToast('Invite link generated!', 'success');
+      } else {
+        throw new Error('No invite code returned');
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate invite link.';
-      showToast(message, 'error');
+      const localInviteCode = buildLocalInviteCode(circleAddress, parseInt(circleId));
+      const fallbackLink = `${window.location.origin}/join/${localInviteCode}`;
+      setInviteLink(fallbackLink);
+      showToast('Generated local invite link', 'success');
     } finally {
       setGeneratingInvite(false);
     }
