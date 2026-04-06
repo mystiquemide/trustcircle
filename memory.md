@@ -204,3 +204,4 @@ Testing:
 - Apr 4, 2026: PHASE 5 EXECUTED (Reputation Integration): Added ABI and logic to fetch live onchain reputation scores for the Dashboard.
 - Apr 4, 2026: PHASE 7 EXECUTED (Mobile Responsive Audit): Applied 22 UX fixes across 13 files to ensure perfect rendering on 320px screens.
 - Apr 4, 2026: MVP V1 COMPLETED & DEPLOYED: Frontend successfully deployed to Vercel. Codebase fully initialized and pushed to GitHub. All 8 phases officially closed out.
+- Apr 6, 2026: FEATURE ADDITIONS: Added disconnect wallet button in Layout header (navigates to landing page). Added generate invite link functionality for pending circles (organizer-only) in CircleDetail page.
