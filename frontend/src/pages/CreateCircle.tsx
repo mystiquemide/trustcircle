@@ -17,6 +17,7 @@ interface CircleFormValues {
   contributionAmount: string;
   cycleDuration: number;
   payoutOrderMethod: number;
+  requiredCollateral: string;
 }
 
 const initialValues: CircleFormValues = {
@@ -25,6 +26,7 @@ const initialValues: CircleFormValues = {
   contributionAmount: '50',
   cycleDuration: 604800,
   payoutOrderMethod: 0,
+  requiredCollateral: '10',
 };
 
 const circleCreatedEvent = parseAbiItem('event CircleCreated(uint256 circleId, address organizer)');
@@ -41,6 +43,9 @@ export default function CreateCircle() {
 
   const parsedContributionAmount = Number.parseFloat(values.contributionAmount);
   const contributionAmount = Number.isFinite(parsedContributionAmount) ? parsedContributionAmount : 0;
+  
+  const parsedRequiredCollateral = Number.parseFloat(values.requiredCollateral);
+  const requiredCollateral = Number.isFinite(parsedRequiredCollateral) ? parsedRequiredCollateral : 0;
 
   const handleInputChange = <K extends keyof CircleFormValues>(key: K, value: CircleFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -67,6 +72,10 @@ export default function CreateCircle() {
     try {
       if (contributionAmount < 1) {
         throw new Error('Contribution amount must be at least 1 USDC.');
+      }
+      
+      if (requiredCollateral < 0) {
+        throw new Error('Collateral cannot be negative.');
       }
 
       if (!window.ethereum) {
@@ -98,6 +107,7 @@ export default function CreateCircle() {
           BigInt(Math.round(contributionAmount * 10 ** 6)),
           BigInt(values.cycleDuration),
           values.payoutOrderMethod,
+          BigInt(Math.round(requiredCollateral * 10 ** 6)),
         ],
         account,
       });
@@ -249,6 +259,17 @@ export default function CreateCircle() {
             inputMode="decimal"
             value={values.contributionAmount}
             onChange={(event) => handleInputChange('contributionAmount', event.target.value)}
+            required
+          />
+
+          <Input
+            label="Required Collateral (USDC)"
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            value={values.requiredCollateral}
+            onChange={(event) => handleInputChange('requiredCollateral', event.target.value)}
             required
           />
 

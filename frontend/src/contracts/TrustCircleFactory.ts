@@ -5,6 +5,11 @@ export const TRUST_CIRCLE_FACTORY_ABI = [
         "internalType": "address",
         "name": "_usdcToken",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_reputationRegistry",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -68,6 +73,11 @@ export const TRUST_CIRCLE_FACTORY_ABI = [
         "internalType": "uint8",
         "name": "payoutOrderMethod",
         "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "requiredCollateral",
+        "type": "uint256"
       }
     ],
     "name": "createCircle",

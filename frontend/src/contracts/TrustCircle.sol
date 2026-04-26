@@ -16,11 +16,13 @@ contract TrustCircle {
     uint256 public contributionAmount;
     uint256 public cycleDuration;
     uint8 public payoutOrderMethod;
+    uint256 public requiredCollateral;
     address public usdcToken;
     address public reputationRegistry;
     address[] public members;
     address[] public payoutOrder;
     mapping(uint256 => mapping(address => bool)) public contributions;
+    mapping(address => uint256) public collateralLocked;
     uint256 public currentCycle;
     uint256 public cycleStart;
     Status public status;
@@ -45,6 +47,7 @@ contract TrustCircle {
         uint256 _contributionAmount,
         uint256 _cycleDuration,
         uint8 _payoutOrderMethod,
+        uint256 _requiredCollateral,
         address _usdcToken,
         address _reputationRegistry
     ) {
@@ -55,9 +58,16 @@ contract TrustCircle {
         contributionAmount = _contributionAmount;
         cycleDuration = _cycleDuration;
         payoutOrderMethod = _payoutOrderMethod;
+        requiredCollateral = _requiredCollateral;
         usdcToken = _usdcToken;
         reputationRegistry = _reputationRegistry;
         status = Status.Pending;
+    }
+
+    /// @notice Allows a user to lock collateral before joining.
+    function lockCollateral() external {
+        IERC20(usdcToken).transferFrom(msg.sender, address(this), requiredCollateral);
+        collateralLocked[msg.sender] += requiredCollateral;
     }
 
     /// @notice Allows a user to join the circle if it's pending and not full.
@@ -65,6 +75,7 @@ contract TrustCircle {
         require(status == Status.Pending, "Circle is not pending");
         require(members.length < memberCount, "Circle is full");
         require(!isMember(msg.sender), "Already a member");
+        require(collateralLocked[msg.sender] >= requiredCollateral, "Insufficient collateral locked");
         members.push(msg.sender);
         emit MemberJoined(circleId, msg.sender);
         if (members.length == memberCount) {
@@ -161,6 +172,10 @@ contract TrustCircle {
         continueVotes = 0;
         dissolveVotes = 0;
         emit DefaultOccurred(circleId, currentCycle, member);
+        
+        // Slash collateral
+        IERC20(usdcToken).transfer(address(this), collateralLocked[member]);
+        collateralLocked[member] = 0;
         
         if (reputationRegistry != address(0)) {
             IReputationRegistry(reputationRegistry).decrementScore(member, 50);

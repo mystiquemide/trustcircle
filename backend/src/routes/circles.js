@@ -10,7 +10,7 @@ module.exports = (db) => {
    */
   router.post('/metadata', async (req, res) => {
     try {
-      const { contractAddress, name, description } = req.body;
+      const { contractAddress, name, description, isPublic } = req.body;
 
       if (!contractAddress || !name) {
         return res.status(400).json({ error: 'contractAddress and name required' });
@@ -20,6 +20,7 @@ module.exports = (db) => {
         contractAddress: contractAddress.toLowerCase(),
         name,
         description: description || '',
+        isPublic: !!isPublic,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -70,8 +71,12 @@ module.exports = (db) => {
       const limit = Math.min(parseInt(req.query.limit) || 50, 100);
       const offset = parseInt(req.query.offset) || 0;
 
-      const snapshot = await db
-        .collection('circles')
+      let query = db.collection('circles');
+      if (req.query.isPublic === 'true') {
+        query = query.where('isPublic', '==', true);
+      }
+
+      const snapshot = await query
         .limit(limit + 1)
         .offset(offset)
         .get();
@@ -98,7 +103,7 @@ module.exports = (db) => {
   router.put('/:contractAddress', async (req, res) => {
     try {
       const { contractAddress } = req.params;
-      const { name, description } = req.body;
+      const { name, description, isPublic } = req.body;
 
       const updateData = {
         updatedAt: new Date().toISOString(),
@@ -106,6 +111,7 @@ module.exports = (db) => {
 
       if (name) updateData.name = name;
       if (description !== undefined) updateData.description = description;
+      if (isPublic !== undefined) updateData.isPublic = !!isPublic;
 
       await db.collection('circles').doc(contractAddress.toLowerCase()).update(updateData);
 

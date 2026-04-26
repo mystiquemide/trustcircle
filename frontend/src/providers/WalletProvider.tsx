@@ -79,7 +79,17 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let cancelled = false;
 
+    const waitForProvider = async (retries = 10): Promise<void> => {
+      if (window.ethereum || retries === 0) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return waitForProvider(retries - 1);
+    };
+
     const hydrate = async () => {
+      await waitForProvider();
+
       if (!window.ethereum) {
         if (!cancelled) {
           setIsInitializing(false);

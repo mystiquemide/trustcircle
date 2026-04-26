@@ -24,7 +24,8 @@ contract TrustCircleFactory {
         uint256 memberCount,
         uint256 contributionAmount,
         uint256 cycleDuration,
-        uint8 payoutOrderMethod
+        uint8 payoutOrderMethod,
+        uint256 requiredCollateral
     ) external returns (uint256) {
         uint256 circleId = circleIdCounter++;
         address newCircle = address(new TrustCircle(
@@ -35,6 +36,7 @@ contract TrustCircleFactory {
             contributionAmount,
             cycleDuration,
             payoutOrderMethod,
+            requiredCollateral,
             usdcToken,
             reputationRegistry
         ));
