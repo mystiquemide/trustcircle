@@ -23,6 +23,7 @@ contract TrustCircle {
     address[] public payoutOrder;
     mapping(uint256 => mapping(address => bool)) public contributions;
     mapping(address => uint256) public collateralLocked;
+    mapping(address => uint256) public collateralLocked;
     uint256 public currentCycle;
     uint256 public cycleStart;
     Status public status;
@@ -47,7 +48,6 @@ contract TrustCircle {
         uint256 _contributionAmount,
         uint256 _cycleDuration,
         uint8 _payoutOrderMethod,
-        uint256 _requiredCollateral,
         address _usdcToken,
         address _reputationRegistry
     ) {
@@ -58,10 +58,21 @@ contract TrustCircle {
         contributionAmount = _contributionAmount;
         cycleDuration = _cycleDuration;
         payoutOrderMethod = _payoutOrderMethod;
-        requiredCollateral = _requiredCollateral;
+        requiredCollateral = _contributionAmount * _memberCount;
         usdcToken = _usdcToken;
         reputationRegistry = _reputationRegistry;
         status = Status.Pending;
+    }
+
+    function lockCollateral() external {
+        IERC20(usdcToken).transferFrom(msg.sender, address(this), requiredCollateral);
+        collateralLocked[msg.sender] += requiredCollateral;
+    }
+
+    function unlockCollateral() external {
+        require(status != Status.Active, "Cannot unlock while circle is active");
+        IERC20(usdcToken).transfer(msg.sender, collateralLocked[msg.sender]);
+        collateralLocked[msg.sender] = 0;
     }
 
     /// @notice Allows a user to lock collateral before joining.

@@ -79,11 +79,16 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let cancelled = false;
 
-    const waitForProvider = async (retries = 10): Promise<void> => {
-      if (window.ethereum || retries === 0) {
+    const waitForProvider = async (retries = 20): Promise<void> => {
+      if (window.ethereum) {
+        console.log('WalletProvider: Provider found.');
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      if (retries === 0) {
+        console.warn('WalletProvider: Timeout waiting for provider.');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
       return waitForProvider(retries - 1);
     };
 

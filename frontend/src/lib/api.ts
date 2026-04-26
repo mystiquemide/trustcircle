@@ -55,11 +55,11 @@ class ApiClient {
     }
   }
 
-  async saveCircleMetadata(contractAddress: string, name: string, description: string) {
+  async saveCircleMetadata(contractAddress: string, name: string, description: string, isPublic: boolean = false) {
     return this.request<any>(
       'POST',
       '/api/circles/metadata',
-      { contractAddress, name, description }
+      { contractAddress, name, description, isPublic }
     );
   }
 

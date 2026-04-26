@@ -18,6 +18,7 @@ interface CircleFormValues {
   cycleDuration: number;
   payoutOrderMethod: number;
   requiredCollateral: string;
+  isPublic: boolean;
 }
 
 const initialValues: CircleFormValues = {
@@ -27,6 +28,7 @@ const initialValues: CircleFormValues = {
   cycleDuration: 604800,
   payoutOrderMethod: 0,
   requiredCollateral: '10',
+  isPublic: false,
 };
 
 const circleCreatedEvent = parseAbiItem('event CircleCreated(uint256 circleId, address organizer)');
@@ -187,7 +189,8 @@ export default function CreateCircle() {
         await api.saveCircleMetadata(
           circleAddress,
           values.name,
-          `Created with ${values.memberCount} members`
+          `Created with ${values.memberCount} members`,
+          values.isPublic
         );
 
         const inviteResponse = await api.generateInviteCode(circleAddress, 720);
@@ -287,11 +290,23 @@ export default function CreateCircle() {
             label="Payout Order"
             value={values.payoutOrderMethod}
             onChange={(event) => handleInputChange('payoutOrderMethod', Number(event.target.value))}
-            className="md:col-span-2"
           >
             <option value={0}>Random draw</option>
             <option value={1}>Manual organizer assignment</option>
           </Select>
+
+          <div className="md:col-span-2 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isPublic"
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              checked={values.isPublic}
+              onChange={(event) => handleInputChange('isPublic', event.target.checked)}
+            />
+            <label htmlFor="isPublic" className="text-sm text-gray-700 dark:text-gray-300">
+              Make circle public (discoverable by others)
+            </label>
+          </div>
 
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" loading={loading} disabled={!canSubmit}>

@@ -60,9 +60,11 @@ export default function Home() {
   const { showToast } = useToast();
 
   const [circles, setCircles] = useState<CircleInfo[]>([]);
+  const [publicCircles, setPublicCircles] = useState<CircleInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPublic, setLoadingPublic] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'my' | 'public'>('my');
   const [inviteCode, setInviteCode] = useState('');
 
   useEffect(() => {
@@ -76,28 +78,22 @@ export default function Home() {
       setLoading(false);
     }
 
-    const loadCircles = async (background = false) => {
-      if (background) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setError('');
-
+    const loadPublicCircles = async () => {
+      setLoadingPublic(true);
       try {
-        const nextCircles = await fetchUserCircles(address as `0x${string}`);
-        setCircles(nextCircles);
-        saveCachedCircles(nextCircles);
-      } catch (loadError) {
-        const message = loadError instanceof Error ? loadError.message : 'Failed to load circles.';
-        setError(message);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/circles?isPublic=true`);
+        const data = await response.json();
+        if (data.success) {
+          setPublicCircles(data.data);
+        }
+      } catch (e) {
+        console.error('Failed to load public circles:', e);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        setLoadingPublic(false);
       }
     };
 
-    void loadCircles(Boolean(cached));
+    void loadPublicCircles();
   }, [address]);
 
   const stats = useMemo(() => {
@@ -177,26 +173,29 @@ export default function Home() {
 
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card
-          title="My Circles"
-          subtitle="Select any circle to view contribution status and payout order."
+          title={
+            <div className="flex gap-2">
+              <button onClick={() => setActiveTab('my')} className={`px-2 ${activeTab === 'my' ? 'font-bold' : 'text-muted'}`}>My Circles</button>
+              <button onClick={() => setActiveTab('public')} className={`px-2 ${activeTab === 'public' ? 'font-bold' : 'text-muted'}`}>Public Circles</button>
+            </div>
+          }
+          subtitle={activeTab === 'my' ? "Select any circle to view contribution status and payout order." : "Join public circles below."}
         >
-          {loading ? (
+          {loading || (activeTab === 'public' && loadingPublic) ? (
             <div className="grid gap-3 md:grid-cols-2">
               <LoadingSkeleton variant="card" count={4} className="h-36" />
             </div>
-          ) : circles.length === 0 ? (
+          ) : (activeTab === 'my' ? circles : publicCircles).length === 0 ? (
             <EmptyState
               icon={ChartBarIcon}
-              title="No circles yet"
-              description="Create your first savings circle or join an invite code from a trusted organizer."
+              title={activeTab === 'my' ? "No circles yet" : "No public circles"}
+              description={activeTab === 'my' ? "Create your first savings circle or join an invite code from a trusted organizer." : "Check back later or create a public circle to start one!"}
               actionLabel="Create Circle"
               onAction={() => navigate('/create')}
-              secondaryActionLabel="Join Invite"
-              onSecondaryAction={() => showToast('Use Quick Join and paste an invite code to continue.', 'info')}
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {circles.map((circle) => {
+              {(activeTab === 'my' ? circles : publicCircles).map((circle) => {
                 const now = Math.floor(Date.now() / 1000);
                 const deadline = circle.cycleStart + circle.cycleDuration;
 
