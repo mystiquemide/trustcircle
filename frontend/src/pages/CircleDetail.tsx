@@ -32,6 +32,10 @@ interface CircleData {
   status: string;
   organizer: string;
   description?: string;
+  currentDefaulter?: string;
+  continueVotes?: number;
+  dissolveVotes?: number;
+  hasVoted?: boolean;
 }
 
 type Contributions = Record<string, boolean>;
@@ -52,6 +56,8 @@ export default function CircleDetail() {
   const [distributingPayout, setDistributingPayout] = useState(false);
   const [showConfirmContribution, setShowConfirmContribution] = useState(false);
   const [showConfirmDistribute, setShowConfirmDistribute] = useState(false);
+  const [markingDefaulter, setMarkingDefaulter] = useState(false);
+  const [voting, setVoting] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [inviteLink, setInviteLink] = useState<string>('');
   const [generatingInvite, setGeneratingInvite] = useState(false);
@@ -80,7 +86,7 @@ export default function CircleDetail() {
 
         setCircleAddress(address);
 
-        const [name, memberCount, contributionAmount, cycleDuration, currentCycle, cycleStart, status, organizer] =
+        const [name, memberCount, contributionAmount, cycleDuration, currentCycle, cycleStart, status, organizer, currentDefaulter, continueVotes, dissolveVotes] =
           await Promise.all([
             publicClient.readContract({
               address: address as `0x${string}`,
@@ -122,7 +128,36 @@ export default function CircleDetail() {
               abi: TRUST_CIRCLE_ABI,
               functionName: 'organizer',
             }),
+            publicClient.readContract({
+              address: address as `0x${string}`,
+              abi: TRUST_CIRCLE_ABI,
+              functionName: 'currentDefaulter',
+            }).catch(() => '0x0000000000000000000000000000000000000000'),
+            publicClient.readContract({
+              address: address as `0x${string}`,
+              abi: TRUST_CIRCLE_ABI,
+              functionName: 'continueVotes',
+            }).catch(() => 0n),
+            publicClient.readContract({
+              address: address as `0x${string}`,
+              abi: TRUST_CIRCLE_ABI,
+              functionName: 'dissolveVotes',
+            }).catch(() => 0n),
           ]);
+
+        let hasVoted = false;
+        if (window.ethereum?.selectedAddress && status === 2) { // Paused
+          try {
+            hasVoted = (await publicClient.readContract({
+              address: address as `0x${string}`,
+              abi: TRUST_CIRCLE_ABI,
+              functionName: 'hasVoted',
+              args: [window.ethereum.selectedAddress as `0x${string}`],
+            })) as boolean;
+          } catch {
+            // ignore
+          }
+        }
 
         const statusLabel = ['Pending', 'Active', 'Paused', 'Resolved', 'Dissolved'][Number(status)] ?? 'Unknown';
 
@@ -135,6 +170,10 @@ export default function CircleDetail() {
           cycleStart: Number(cycleStart),
           status: statusLabel,
           organizer: organizer as string,
+          currentDefaulter: currentDefaulter as string,
+          continueVotes: Number(continueVotes),
+          dissolveVotes: Number(dissolveVotes),
+          hasVoted,
         };
 
         setCircleData(nextCircleData);
@@ -424,6 +463,76 @@ export default function CircleDetail() {
     }
   };
 
+  const handleMarkDefaulter = async (memberAddress: string) => {
+    if (!circleData || !circleAddress || !ethereum) return;
+    setMarkingDefaulter(true);
+    try {
+      const walletClient = createWalletClient({
+        transport: custom(ethereum),
+        chain: arcTestnet,
+      });
+      const publicClient = createPublicClient({
+        transport: custom(ethereum),
+        chain: arcTestnet,
+      });
+
+      const account = (await walletClient.getAddresses())[0];
+      if (!account) throw new Error('No wallet address found');
+
+      const hash = await walletClient.writeContract({
+        address: circleAddress as `0x${string}`,
+        abi: TRUST_CIRCLE_ABI,
+        functionName: 'markDefaulter',
+        args: [memberAddress as `0x${string}`],
+        account,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+      showToast('Member marked as defaulter. Circle is paused.', 'success');
+      setRefreshIndex((current) => current + 1);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to mark defaulter.';
+      showToast(message, 'error');
+    } finally {
+      setMarkingDefaulter(false);
+    }
+  };
+
+  const handleVoteOnResolution = async (continueCircle: boolean) => {
+    if (!circleData || !circleAddress || !ethereum) return;
+    setVoting(true);
+    try {
+      const walletClient = createWalletClient({
+        transport: custom(ethereum),
+        chain: arcTestnet,
+      });
+      const publicClient = createPublicClient({
+        transport: custom(ethereum),
+        chain: arcTestnet,
+      });
+
+      const account = (await walletClient.getAddresses())[0];
+      if (!account) throw new Error('No wallet address found');
+
+      const hash = await walletClient.writeContract({
+        address: circleAddress as `0x${string}`,
+        abi: TRUST_CIRCLE_ABI,
+        functionName: 'voteOnDefaultResolution',
+        args: [continueCircle],
+        account,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+      showToast('Vote cast successfully.', 'success');
+      setRefreshIndex((current) => current + 1);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to cast vote.';
+      showToast(message, 'error');
+    } finally {
+      setVoting(false);
+    }
+  };
+
   const isOrganizer = walletAddress?.toLowerCase() === circleData?.organizer?.toLowerCase();
 
   return (
@@ -551,6 +660,47 @@ export default function CircleDetail() {
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
+            {circleData.status === 'Paused' && (
+              <Card title="Default Resolution" subtitle="A member failed to contribute. Vote to resolve." className="col-span-full border-rose-200 bg-rose-50/50 dark:border-rose-900/30 dark:bg-rose-950/20">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-rose-800 dark:text-rose-200">
+                    <ExclamationTriangleIcon className="h-5 w-5" />
+                    <span>Defaulter: <AddressDisplay address={circleData.currentDefaulter || ''} className="inline-block" /></span>
+                  </div>
+                  
+                  <div className="flex gap-4 p-4 border rounded-xl bg-app-elevated">
+                    <div className="flex-1 text-center">
+                      <p className="text-lg font-bold">{circleData.continueVotes}</p>
+                      <p className="text-xs uppercase text-muted">Continue</p>
+                    </div>
+                    <div className="flex-1 text-center border-l border-r">
+                      <p className="text-lg font-bold">{circleData.dissolveVotes}</p>
+                      <p className="text-xs uppercase text-muted">Dissolve</p>
+                    </div>
+                    <div className="flex-1 text-center">
+                      <p className="text-lg font-bold">{circleData.memberCount}</p>
+                      <p className="text-xs uppercase text-muted">Total Members</p>
+                    </div>
+                  </div>
+
+                  {isMember && !circleData.hasVoted ? (
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <Button fullWidth onClick={() => handleVoteOnResolution(true)} loading={voting}>
+                        Vote to Continue
+                      </Button>
+                      <Button fullWidth variant="secondary" onClick={() => handleVoteOnResolution(false)} loading={voting} className="!text-rose-600 dark:!text-rose-400">
+                        Vote to Dissolve
+                      </Button>
+                    </div>
+                  ) : isMember ? (
+                    <div className="text-center p-3 text-sm rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-400">
+                      You have already cast your vote. Waiting for others...
+                    </div>
+                  ) : null}
+                </div>
+              </Card>
+            )}
+
             <Card title="Member Contributions" subtitle="Current cycle status by member.">
               {members.length === 0 ? (
                 <EmptyState
@@ -563,11 +713,24 @@ export default function CircleDetail() {
                   {members.map((member) => (
                       <li
                         key={member}
-                        className="flex items-center justify-between rounded-xl border bg-app-elevated px-3 py-2.5"
+                        className="flex items-center justify-between rounded-xl border bg-app-elevated px-3 py-2.5 flex-wrap gap-2"
                       >
-                      <AddressDisplay address={member} />
-                      <StatusBadge status={contributions[member] ? 'Active' : 'Pending'} />
-                    </li>
+                        <AddressDisplay address={member} />
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={contributions[member] ? 'Active' : 'Pending'} />
+                          {isMember && circleData.status === 'Active' && !contributions[member] && gracePeriodPassed && (
+                            <Button 
+                              size="sm" 
+                              variant="secondary" 
+                              className="!py-1 !text-xs bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400"
+                              onClick={() => handleMarkDefaulter(member)}
+                              loading={markingDefaulter}
+                            >
+                              Mark Defaulter
+                            </Button>
+                          )}
+                        </div>
+                      </li>
                   ))}
                 </ul>
               )}

@@ -3,6 +3,11 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface IReputationRegistry {
+    function incrementScore(address wallet, uint256 amount) external;
+    function decrementScore(address wallet, uint256 amount) external;
+}
+
 contract TrustCircle {
     uint256 public circleId;
     address public organizer;
@@ -12,6 +17,7 @@ contract TrustCircle {
     uint256 public cycleDuration;
     uint8 public payoutOrderMethod;
     address public usdcToken;
+    address public reputationRegistry;
     address[] public members;
     address[] public payoutOrder;
     mapping(uint256 => mapping(address => bool)) public contributions;
@@ -39,7 +45,8 @@ contract TrustCircle {
         uint256 _contributionAmount,
         uint256 _cycleDuration,
         uint8 _payoutOrderMethod,
-        address _usdcToken
+        address _usdcToken,
+        address _reputationRegistry
     ) {
         circleId = _circleId;
         organizer = _organizer;
@@ -49,6 +56,7 @@ contract TrustCircle {
         cycleDuration = _cycleDuration;
         payoutOrderMethod = _payoutOrderMethod;
         usdcToken = _usdcToken;
+        reputationRegistry = _reputationRegistry;
         status = Status.Pending;
     }
 
@@ -73,7 +81,7 @@ contract TrustCircle {
     function _setRandomPayoutOrder() internal {
         payoutOrder = members;
         for (uint i = payoutOrder.length - 1; i > 0; i--) {
-            uint j = uint(keccak256(abi.encodePacked(block.timestamp, block.difficulty, i))) % (i + 1);
+            uint j = uint(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, i))) % (i + 1);
             (payoutOrder[i], payoutOrder[j]) = (payoutOrder[j], payoutOrder[i]);
         }
     }
@@ -122,6 +130,12 @@ contract TrustCircle {
         address recipient = payoutOrder[currentCycle];
         uint256 amount = members.length * contributionAmount;
         IERC20(usdcToken).transfer(recipient, amount);
+        
+        // Reward recipient with reputation
+        if (reputationRegistry != address(0)) {
+            IReputationRegistry(reputationRegistry).incrementScore(recipient, 10);
+        }
+
         emit PayoutDistributed(circleId, currentCycle, recipient, amount);
         currentCycle++;
         if (currentCycle >= memberCount) {
@@ -147,7 +161,10 @@ contract TrustCircle {
         continueVotes = 0;
         dissolveVotes = 0;
         emit DefaultOccurred(circleId, currentCycle, member);
-        // TODO: Integrate with ReputationRegistry to decrement score
+        
+        if (reputationRegistry != address(0)) {
+            IReputationRegistry(reputationRegistry).decrementScore(member, 50);
+        }
     }
 
     /// @notice Allows members to vote on default resolution: continue circle or dissolve.

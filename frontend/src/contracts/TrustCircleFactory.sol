@@ -7,13 +7,15 @@ import "./TrustCircle.sol";
 
 contract TrustCircleFactory {
     address public usdcToken;
+    address public reputationRegistry;
     uint256 public circleIdCounter;
     mapping(uint256 => address) public circles;
 
     event CircleCreated(uint256 circleId, address organizer);
 
-    constructor(address _usdcToken) {
+    constructor(address _usdcToken, address _reputationRegistry) {
         usdcToken = _usdcToken;
+        reputationRegistry = _reputationRegistry;
     }
 
     /// @notice Creates a new TrustCircle contract with the specified parameters.
@@ -33,7 +35,8 @@ contract TrustCircleFactory {
             contributionAmount,
             cycleDuration,
             payoutOrderMethod,
-            usdcToken
+            usdcToken,
+            reputationRegistry
         ));
         circles[circleId] = newCircle;
         emit CircleCreated(circleId, msg.sender);
