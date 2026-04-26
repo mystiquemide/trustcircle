@@ -8,9 +8,10 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useState, type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button, Logo } from '../components/common';
 import { ConnectWalletButton } from '../components/wallet/ConnectWalletButton';
+import { useWalletContext } from '../providers/WalletProvider';
 
 const steps = [
   {
@@ -58,6 +59,8 @@ const navLinks = [
 
 export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isConnected, disconnect } = useWalletContext();
+  const navigate = useNavigate();
 
   return (
     <div className="landing-bg dark relative min-h-screen overflow-hidden">
@@ -85,8 +88,15 @@ export default function LandingPage() {
             ))}
           </nav>
 
-          <div className="hidden md:block">
-            <ConnectWalletButton size="sm" redirectToHomeOnConnect />
+          <div className="hidden md:flex gap-2">
+            {isConnected ? (
+              <>
+                <Button size="sm" variant="ghost" onClick={() => navigate('/home')}>Dashboard</Button>
+                <Button size="sm" variant="secondary" onClick={disconnect}>Disconnect</Button>
+              </>
+            ) : (
+              <ConnectWalletButton size="sm" redirectToHomeOnConnect />
+            )}
           </div>
 
           <Button
@@ -147,10 +157,17 @@ export default function LandingPage() {
           </p>
 
           <div
-            className="landing-fade-up mt-10 flex items-center justify-center"
+            className="landing-fade-up mt-10 flex items-center justify-center gap-2"
             style={{ '--landing-delay': '320ms' } as CSSProperties}
           >
-            <ConnectWalletButton size="lg" redirectToHomeOnConnect />
+            {isConnected ? (
+              <>
+                <Button size="lg" onClick={() => navigate('/home')}>Go to Dashboard</Button>
+                <Button size="lg" variant="secondary" onClick={disconnect}>Disconnect</Button>
+              </>
+            ) : (
+              <ConnectWalletButton size="lg" redirectToHomeOnConnect />
+            )}
           </div>
 
           <p

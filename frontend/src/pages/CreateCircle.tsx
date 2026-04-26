@@ -7,6 +7,7 @@ import { TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/addresses';
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
 import { buildLocalInviteCode, saveLocalInvite } from '../lib/invites';
+import { formatUsd } from '../lib/format';
 import { Button, Card, ConfirmDialog } from '../components/common';
 import { Input, Select } from '../components/forms';
 import { useToast } from '../providers/ToastProvider';
@@ -39,6 +40,7 @@ export default function CreateCircle() {
 
   const [values, setValues] = useState<CircleFormValues>(initialValues);
   const [loading, setLoading] = useState(false);
+  const [isAborted, setIsAborted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [newCircleId, setNewCircleId] = useState<number | null>(null);
@@ -203,6 +205,7 @@ export default function CreateCircle() {
         setInviteLink(`/join/${localInviteCode}`);
       }
     } catch (error) {
+      if (isAborted) return;
       const message = error instanceof Error ? error.message : 'Failed to create circle';
       showToast(message, 'error');
     } finally {
@@ -265,16 +268,12 @@ export default function CreateCircle() {
             required
           />
 
-          <Input
-            label="Required Collateral (USDC)"
-            type="number"
-            min={0}
-            step="0.01"
-            inputMode="decimal"
-            value={values.requiredCollateral}
-            onChange={(event) => handleInputChange('requiredCollateral', event.target.value)}
-            required
-          />
+          <div className="rounded-xl border bg-app-elevated p-3">
+            <p className="text-xs uppercase tracking-wide text-muted">Required Collateral</p>
+            <p className="mt-1 text-lg font-bold text-[color:var(--text-primary)]">
+              {formatUsd(requiredCollateral)}
+            </p>
+          </div>
 
           <Select
             label="Cycle Duration"
@@ -313,6 +312,19 @@ export default function CreateCircle() {
               <SparklesIcon className="h-4 w-4" />
               Create Circle
             </Button>
+            {loading && (
+              <Button 
+                variant="secondary" 
+                onClick={() => {
+                  setIsAborted(true);
+                  setLoading(false);
+                  showToast('Circle creation cancelled.', 'info');
+                }}
+                className="ml-2"
+              >
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
       </Card>
@@ -352,8 +364,8 @@ export default function CreateCircle() {
         onClose={() => setShowConfirm(false)}
         onConfirm={createCircle}
         title="Create this circle?"
-        message={`This will deploy an onchain circle with ${values.memberCount} members and ${contributionAmount} USDC per cycle.`}
-        confirmLabel="Deploy Circle"
+        message={`This will create an onchain circle with ${values.memberCount} members and ${contributionAmount} USDC per cycle.`}
+        confirmLabel="Create Circle"
         loading={loading}
       />
     </div>
