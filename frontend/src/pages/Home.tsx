@@ -65,6 +65,7 @@ export default function Home() {
   const [loadingPublic, setLoadingPublic] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'public'>('my');
+  const [error, setError] = useState('');
   const [inviteCode, setInviteCode] = useState('');
 
   useEffect(() => {
@@ -77,6 +78,29 @@ export default function Home() {
       setCircles(cached);
       setLoading(false);
     }
+
+    const loadCircles = async (background = false) => {
+      if (background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
+
+      try {
+        const nextCircles = await fetchUserCircles(address as `0x${string}`);
+        setCircles(nextCircles);
+        saveCachedCircles(nextCircles);
+      } catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : 'Failed to load circles.';
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    };
+
+    void loadCircles(Boolean(cached));
 
     const loadPublicCircles = async () => {
       setLoadingPublic(true);
