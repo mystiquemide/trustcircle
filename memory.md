@@ -120,7 +120,7 @@ Testing:
   - VITE_USDC_ADDRESS: USDC contract address (default: 0x3600000000000000000000000000000000000000)
   - VITE_ARC_RPC_URL: Arc RPC URL (default: https://rpc.testnet.arc.io)
   - VITE_ARC_EXPLORER_URL: Arc explorer URL (default: https://testnet.arcscan.io)
-- CONTRACT_ADDRESSES: ReputationRegistry: 0x9549002af3b4B806D1F3D16287189143F44a7E18, TrustCircleFactory: 0x45F655C21D0626a08C233332930eF1bF41403812, TrustCircle instance example: 0x3b1Aa58f3D9607c53Fd11FeC738218b873BD57B1, USDC: 0x3600000000000000000000000000000000000000.
+- CONTRACT_ADDRESSES: ReputationRegistry: 0x9549002af3b4B806D1F3D16287189143F44a7E18, TrustCircleFactory: 0xe6FE2f8ecBCDc3B7E77AF602D2F6E6aa413343E1, TrustCircle instance example: 0x3b1Aa58f3D9607c53Fd11FeC738218b873BD57B1, USDC: 0x3600000000000000000000000000000000000000.
 - ARC_CHAIN_ID: 5042002
 - ARC_RPC_URL: https://rpc.testnet.arc.io
 ■ ACTIVE WORK & IN-PROGRESS
@@ -133,8 +133,8 @@ Testing:
   - Codebase pushed to GitHub: `https://github.com/mystiquemide/trustcircle.git`
   - **Status:** Production-ready for testnet users. Ready for V2 feature development.
 ■ ROADMAP: FUTURE INTEGRATIONS (V2+)
-1. **Dynamic Reputation:** Wire `TrustCircle.sol` to call `ReputationRegistry.incrementScore()` on successful payout and `decrementScore()` on default marking. Requires contract update and redeployment.
-2. **Pause/Default UI:** Expose the contract's state machine (`markDefaulter`, `voteOnDefaultResolution`, `setPayoutOrderManual`) in the CircleDetail page so members can actively manage defaults and voting.
+1. ~~**Dynamic Reputation:** Wire `TrustCircle.sol` to call `ReputationRegistry.incrementScore()` on successful payout and `decrementScore()` on default marking. Requires contract update and redeployment.~~ **COMPLETED**
+2. ~~**Pause/Default UI:** Expose the contract's state machine (`markDefaulter`, `voteOnDefaultResolution`, `setPayoutOrderManual`) in the CircleDetail page so members can actively manage defaults and voting.~~ **COMPLETED**
 3. **Notification Upgrades:** Enhance Cloud Functions to respect user timezone preferences and integrate SendGrid/Resend for email fallback when push notifications fail.
 4. **E2E Testing:** Implement Playwright to automate core flows (Create → Join → Contribute → Payout) and prevent regressions.
 5. **Auction-Based Payout Order:** Allow members to bid or compete for earlier payout positions instead of fixed/random ordering.
@@ -207,3 +207,4 @@ Testing:
 - Apr 6, 2026: FEATURE ADDITIONS: Added disconnect wallet button in Layout header (navigates to landing page). Added generate invite link functionality for pending circles (organizer-only) in CircleDetail page.
 - Apr 6, 2026 (continued): BUG FIX: Fixed invite code response path in CircleDetail - now uses correct API response path and local invite code fallback format (same as circle creation).
 - Apr 6, 2026 (continued): UX IMPROVEMENT: Landing page auto-redirects to /home on wallet connect. Layout header now shows connected wallet address next to disconnect button (desktop + mobile).
+- Apr 26, 2026: V2 FEATURE IMPLEMENTATION - Implemented Dynamic Reputation inside TrustCircle.sol and integrated ReputationRegistry. Added 'Mark Defaulter' and 'Vote on Default Resolution' UI to CircleDetail.tsx. Deployed new TrustCircleFactory (0xe6FE2f8ecBCDc3B7E77AF602D2F6E6aa413343E1) via Remix and updated frontend env vars.
