@@ -241,11 +241,8 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-slate-200/70 bg-white/80 py-8 text-sm text-slate-500 dark:border-white/10 dark:bg-[#040913]/80 dark:text-slate-400">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 sm:px-6 lg:flex-row lg:px-8">
-          <div className="flex items-center gap-4">
-            <a href="#" className="py-2 transition hover:text-slate-900 dark:hover:text-slate-200">
-              Docs
-            </a>
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-3 px-4 text-center sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-4">
             <a href="#" className="py-2 transition hover:text-slate-900 dark:hover:text-slate-200">
               Terms & Conditions
             </a>

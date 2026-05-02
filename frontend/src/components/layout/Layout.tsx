@@ -124,11 +124,8 @@ export const Layout = () => {
       </main>
 
       <footer className="border-t bg-app-secondary/80 py-6 text-sm text-muted">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 text-center sm:px-6 lg:flex-row lg:px-8 lg:text-left">
-          <div className="flex items-center gap-4">
-            <a href="#" className="py-2 transition hover:text-[color:var(--text-primary)]">
-              Docs
-            </a>
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-3 px-4 text-center sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-4">
             <a href="#" className="py-2 transition hover:text-[color:var(--text-primary)]">
               Terms & Conditions
             </a>
