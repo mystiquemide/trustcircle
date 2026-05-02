@@ -48,7 +48,15 @@ module.exports = (db) => {
       const doc = await db.collection('users').doc(walletAddress.toLowerCase()).get();
 
       if (!doc.exists) {
-        return res.status(404).json({ error: 'User preferences not found' });
+        return res.json({
+          success: true,
+          data: {
+            walletAddress: walletAddress.toLowerCase(),
+            email: '',
+            enablePushNotifications: true,
+            timezoneName: 'UTC',
+          },
+        });
       }
 
       res.json({

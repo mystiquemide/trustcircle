@@ -55,16 +55,57 @@ class ApiClient {
     }
   }
 
-  async saveCircleMetadata(contractAddress: string, name: string, description: string, isPublic: boolean = false) {
+  async saveCircleMetadata(
+    contractAddress: string,
+    name: string,
+    description: string,
+    isPublic?: boolean,
+    circleId?: number
+  ) {
+    const payload: {
+      contractAddress: string;
+      name: string;
+      description: string;
+      isPublic?: boolean;
+      circleId?: number;
+    } = { contractAddress, name, description };
+
+    if (typeof isPublic === 'boolean') {
+      payload.isPublic = isPublic;
+    }
+
+    if (typeof circleId === 'number') {
+      payload.circleId = circleId;
+    }
+
     return this.request<any>(
       'POST',
       '/api/circles/metadata',
-      { contractAddress, name, description, isPublic }
+      payload
     );
   }
 
   async getCircleMetadata(contractAddress: string) {
     return this.request<any>('GET', `/api/circles/${contractAddress}`);
+  }
+
+  async listCircles(options: { isPublic?: boolean; limit?: number; offset?: number } = {}) {
+    const params = new URLSearchParams();
+
+    if (typeof options.isPublic === 'boolean') {
+      params.set('isPublic', String(options.isPublic));
+    }
+
+    if (options.limit) {
+      params.set('limit', String(options.limit));
+    }
+
+    if (options.offset) {
+      params.set('offset', String(options.offset));
+    }
+
+    const query = params.toString();
+    return this.request<any[]>('GET', `/api/circles${query ? `?${query}` : ''}`);
   }
 
   async generateInviteCode(contractAddress: string, expiresIn: number = 720) {
@@ -105,6 +146,13 @@ class ApiClient {
       'POST',
       '/api/users/track-circle',
       { walletAddress, contractAddress }
+    );
+  }
+
+  async getUserCircles(walletAddress: string) {
+    return this.request<{ circles: string[]; walletAddress: string; totalCircles: number }>(
+      'GET',
+      `/api/users/circles/${walletAddress}`
     );
   }
 

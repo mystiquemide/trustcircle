@@ -9,3 +9,4 @@ build/
 .firebase/
 .runtimeconfig.json
 serviceAccountKey.json
+.local-firestore.json

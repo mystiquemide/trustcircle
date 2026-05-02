@@ -10,22 +10,36 @@ module.exports = (db) => {
    */
   router.post('/metadata', async (req, res) => {
     try {
-      const { contractAddress, name, description, isPublic } = req.body;
+      const { contractAddress, name, description, isPublic, circleId } = req.body;
 
       if (!contractAddress || !name) {
         return res.status(400).json({ error: 'contractAddress and name required' });
       }
 
+      const normalizedAddress = contractAddress.toLowerCase();
+      const docRef = db.collection('circles').doc(normalizedAddress);
+      const existingDoc = await docRef.get();
+      const now = new Date().toISOString();
       const metadata = {
-        contractAddress: contractAddress.toLowerCase(),
+        contractAddress: normalizedAddress,
         name,
         description: description || '',
-        isPublic: !!isPublic,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       };
 
-      await db.collection('circles').doc(contractAddress.toLowerCase()).set(metadata, { merge: true });
+      if (!existingDoc.exists) {
+        metadata.createdAt = now;
+      }
+
+      if (typeof isPublic === 'boolean') {
+        metadata.isPublic = isPublic;
+      }
+
+      if (Number.isInteger(circleId) && circleId >= 0) {
+        metadata.circleId = circleId;
+      }
+
+      await docRef.set(metadata, { merge: true });
 
       res.json({
         success: true,

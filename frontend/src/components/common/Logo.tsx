@@ -3,6 +3,7 @@ import { cn } from '../../lib/cn';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
+  showIcon?: boolean;
   showText?: boolean;
   className?: string;
 }
@@ -13,17 +14,19 @@ const sizeMap = {
   lg: { iconWrap: 'h-12 w-12 rounded-2xl', text: 'text-2xl' },
 };
 
-export const Logo = ({ size = 'md', showText = true, className }: LogoProps) => (
+export const Logo = ({ size = 'md', showIcon = false, showText = true, className }: LogoProps) => (
   <div className={cn('inline-flex items-center gap-3', className)}>
-    <div
-      className={cn(
-        'flex items-center justify-center bg-gradient-to-br from-primary-400 to-primary-700 shadow-card',
-        sizeMap[size].iconWrap
-      )}
-      aria-hidden="true"
-    >
-      <ShieldCheckIcon className="h-4 w-4 text-white" />
-    </div>
+    {showIcon ? (
+      <div
+        className={cn(
+          'flex items-center justify-center bg-gradient-to-br from-primary-400 to-primary-700 shadow-card',
+          sizeMap[size].iconWrap
+        )}
+        aria-hidden="true"
+      >
+        <ShieldCheckIcon className="h-4 w-4 text-white" />
+      </div>
+    ) : null}
     {showText ? (
       <div className="flex flex-col">
         <span className={cn('font-extrabold leading-none tracking-tight', sizeMap[size].text)}>

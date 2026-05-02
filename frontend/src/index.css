@@ -142,19 +142,34 @@
 
   .landing-bg {
     background:
+      radial-gradient(circle at 50% 4%, rgba(59, 130, 246, 0.14), transparent 42%),
+      radial-gradient(circle at 86% 36%, rgba(14, 165, 233, 0.12), transparent 34%),
+      radial-gradient(circle at 18% 92%, rgba(59, 130, 246, 0.08), transparent 34%),
+      radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.1) 1px, transparent 0),
+      #f7fbff;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px, 100% 100%;
+    color: #0f172a;
+  }
+
+  .dark .landing-bg {
+    background:
       radial-gradient(circle at 50% 4%, rgba(59, 130, 246, 0.24), transparent 42%),
       radial-gradient(circle at 86% 36%, rgba(14, 165, 233, 0.16), transparent 34%),
       radial-gradient(circle at 18% 92%, rgba(59, 130, 246, 0.12), transparent 34%),
       radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.16) 1px, transparent 0),
       #050b17;
-    background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px, 100% 100%;
     color: #e2e8f0;
   }
 
   .glass-card-landing {
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.42));
+    border: 1px solid rgba(37, 99, 235, 0.18);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(239, 246, 255, 0.72));
     backdrop-filter: blur(14px);
+  }
+
+  .dark .glass-card-landing {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.42));
   }
 
   .glass-card-landing:hover {
@@ -164,10 +179,17 @@
 
   .glow-border-pill {
     background:
-      linear-gradient(#050b17, #050b17) padding-box,
+      linear-gradient(#f7fbff, #f7fbff) padding-box,
       linear-gradient(135deg, rgba(96, 165, 250, 0.78), rgba(14, 165, 233, 0.38), rgba(125, 211, 252, 0.2))
         border-box;
     border: 1px solid transparent;
+  }
+
+  .dark .glow-border-pill {
+    background:
+      linear-gradient(#050b17, #050b17) padding-box,
+      linear-gradient(135deg, rgba(96, 165, 250, 0.78), rgba(14, 165, 233, 0.38), rgba(125, 211, 252, 0.2))
+        border-box;
   }
 
   .landing-fade-up {

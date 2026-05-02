@@ -25,7 +25,16 @@ export const formatCycleDuration = (seconds: number) => {
   }
 
   const hours = Math.floor(seconds / 3600);
-  return `Every ${hours}h`;
+  if (hours > 0) {
+    return `Every ${hours}h`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes > 0) {
+    return `Every ${minutes}m`;
+  }
+
+  return `Every ${seconds}s`;
 };
 
 export const formatTimeLeft = (timeLeftSeconds: number) => {

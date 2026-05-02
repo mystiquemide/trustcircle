@@ -13,8 +13,8 @@ import { NetworkWarning } from '../wallet/NetworkWarning';
 
 const navItems = [
   { to: '/home', label: 'Home' },
-  { to: '/dashboard', label: 'Dashboard' },
   { to: '/create', label: 'Create Circle' },
+  { to: '/dashboard', label: 'Dashboard' },
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -38,19 +38,20 @@ export const Layout = () => {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b bg-app-secondary/90 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="relative mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link to="/home" className="inline-flex">
               <Logo size="sm" />
             </Link>
-            <nav className="hidden items-center gap-1 md:flex">
-              {navItems.map((item) => (
-                <NavLink key={item.to} to={item.to} className={navLinkClass}>
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
           </div>
+
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
 
           <div className="hidden items-center gap-3 md:flex">
             <DarkModeToggle />

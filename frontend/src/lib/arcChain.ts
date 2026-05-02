@@ -11,8 +11,8 @@ import { defineChain } from 'viem';
  * - Native Currency: USDC
  */
 
-const ARC_RPC_URL = import.meta.env.VITE_ARC_RPC_URL || 'https://rpc.testnet.arc.io';
-const ARC_EXPLORER_URL = import.meta.env.VITE_ARC_EXPLORER_URL || 'https://testnet.arcscan.io';
+const ARC_RPC_URL = import.meta.env.VITE_ARC_RPC_URL || 'https://rpc.testnet.arc.network';
+const ARC_EXPLORER_URL = import.meta.env.VITE_ARC_EXPLORER_URL || 'https://testnet.arcscan.app';
 
 export const arcTestnet = defineChain({
   id: 5042002,

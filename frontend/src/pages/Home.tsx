@@ -9,7 +9,7 @@ import {
 import { Card, Button, StatusBadge } from '../components/common';
 import { LoadingSkeleton, EmptyState } from '../components/feedback';
 import { Input } from '../components/forms';
-import { fetchUserCircles, type CircleInfo } from '../lib/circle';
+import { fetchUserCircles, fetchPublicCircles, type CircleInfo } from '../lib/circle';
 import { formatTimeLeft, formatUsd } from '../lib/format';
 import { useWalletContext } from '../providers/WalletProvider';
 import { useToast } from '../providers/ToastProvider';
@@ -68,8 +68,32 @@ export default function Home() {
   const [error, setError] = useState('');
   const [inviteCode, setInviteCode] = useState('');
 
+  // Load public circles independently — no wallet needed
+  useEffect(() => {
+    if (activeTab !== 'public') {
+      setLoadingPublic(false);
+      return;
+    }
+
+    const loadPublicCircles = async () => {
+      setLoadingPublic(true);
+      try {
+        const allCircles = await fetchPublicCircles();
+        setPublicCircles(allCircles);
+      } catch (e) {
+        console.error('Failed to load public circles:', e);
+      } finally {
+        setLoadingPublic(false);
+      }
+    };
+
+    void loadPublicCircles();
+  }, [activeTab]);
+
+  // Load user's circles only when wallet is connected
   useEffect(() => {
     if (!address) {
+      setLoading(false);
       return;
     }
 
@@ -101,23 +125,6 @@ export default function Home() {
     };
 
     void loadCircles(Boolean(cached));
-
-    const loadPublicCircles = async () => {
-      setLoadingPublic(true);
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/circles?isPublic=true`);
-        const data = await response.json();
-        if (data.success) {
-          setPublicCircles(data.data);
-        }
-      } catch (e) {
-        console.error('Failed to load public circles:', e);
-      } finally {
-        setLoadingPublic(false);
-      }
-    };
-
-    void loadPublicCircles();
   }, [address]);
 
   const stats = useMemo(() => {
@@ -129,15 +136,18 @@ export default function Home() {
   }, [circles]);
 
   const handleRefresh = async () => {
-    if (!address) {
-      return;
-    }
-
     setRefreshing(true);
     try {
-      const nextCircles = await fetchUserCircles(address as `0x${string}`);
-      setCircles(nextCircles);
-      saveCachedCircles(nextCircles);
+      // Refresh both user circles and public circles
+      const publicPromise = fetchPublicCircles().then((all) => setPublicCircles(all)).catch(() => {});
+
+      if (address) {
+        const nextCircles = await fetchUserCircles(address as `0x${string}`);
+        setCircles(nextCircles);
+        saveCachedCircles(nextCircles);
+      }
+
+      await publicPromise;
       showToast('Circles refreshed.', 'success');
     } catch (refreshError) {
       const message = refreshError instanceof Error ? refreshError.message : 'Refresh failed.';
@@ -176,8 +186,9 @@ export default function Home() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card title="Total Circles" subtitle="Your active + historical membership">
+        <Card title="My Circles" subtitle="Circles you created or joined">
           <p className="text-3xl font-extrabold text-[color:var(--text-primary)]">{stats.totalCircles}</p>
+          <p className="mt-1 text-xs text-muted">{publicCircles.length} total on network</p>
         </Card>
         <Card title="Active Circles" subtitle="Currently collecting contributions">
           <p className="text-3xl font-extrabold text-[color:var(--text-primary)]">{stats.activeCircles}</p>
@@ -203,7 +214,7 @@ export default function Home() {
               <button onClick={() => setActiveTab('public')} className={`px-2 ${activeTab === 'public' ? 'font-bold' : 'text-muted'}`}>Public Circles</button>
             </div>
           }
-          subtitle={activeTab === 'my' ? "Select any circle to view contribution status and payout order." : "Join public circles below."}
+          subtitle={activeTab === 'my' ? "Select any circle to view contribution status and payout order." : "Browse all circles on the network. Join any Pending circle directly."}
         >
           {loading || (activeTab === 'public' && loadingPublic) ? (
             <div className="grid gap-3 md:grid-cols-2">
@@ -239,11 +250,14 @@ export default function Home() {
                     : 'font-semibold text-[color:var(--text-primary)]';
 
                 return (
-                  <button
+                  <div
                     key={circle.id}
-                    type="button"
-                    onClick={() => navigate(`/circle/${circle.id}`)}
-                    className="rounded-xl border bg-app-secondary p-4 text-left transition hover:border-primary-300 hover:shadow-card"
+                    onClick={() =>
+                      activeTab === 'public'
+                        ? navigate(`/join/${circle.address}`)
+                        : navigate(`/circle/${circle.routeTarget ?? circle.id}`)
+                    }
+                    className="cursor-pointer rounded-xl border bg-app-secondary p-4 text-left transition hover:border-primary-300 hover:shadow-card"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-base font-bold text-[color:var(--text-primary)]">{circle.name}</h3>
@@ -260,7 +274,19 @@ export default function Home() {
                       <span className="text-secondary">{timelineLabel}</span>
                       <span className={timelineValueClass}>{timelineValue}</span>
                     </div>
-                  </button>
+                    {activeTab === 'public' && circle.status === 'Pending' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/join/${circle.address}`);
+                        }}
+                        className="mt-3 w-full rounded-lg bg-primary-600 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-primary-700"
+                      >
+                        Join Circle
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>

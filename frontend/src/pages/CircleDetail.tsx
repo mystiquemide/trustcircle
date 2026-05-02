@@ -39,6 +39,7 @@ interface CircleData {
 }
 
 type Contributions = Record<string, boolean>;
+const isAddressParam = (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value);
 
 export default function CircleDetail() {
   const { circleId = '' } = useParams<{ circleId: string }>();
@@ -74,15 +75,30 @@ export default function CircleDetail() {
         const publicClient = createPublicClient({
           transport: custom(ethereum),
           chain: arcTestnet,
-          pollingInterval: 1000,
+          pollingInterval: 10_000,
         });
 
-        const address = (await publicClient.readContract({
-          address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
-          abi: TRUST_CIRCLE_FACTORY_ABI,
-          functionName: 'getCircle',
-          args: [BigInt(circleId)],
-        })) as string;
+        let address = isAddressParam(circleId) ? circleId : '';
+
+        if (!address) {
+          for (let attempt = 0; attempt < 24; attempt++) {
+            address = (await publicClient.readContract({
+              address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
+              abi: TRUST_CIRCLE_FACTORY_ABI,
+              functionName: 'circles',
+              args: [BigInt(circleId)],
+            })) as string;
+
+            if (address && address !== '0x0000000000000000000000000000000000000000') {
+              break;
+            }
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+
+        if (!address || address === '0x0000000000000000000000000000000000000000') {
+          throw new Error('Circle address not yet available. Please refresh in a moment.');
+        }
 
         setCircleAddress(address);
 
@@ -272,12 +288,27 @@ export default function CircleDetail() {
   }, [circleId, ethereum, refreshIndex, showToast]);
 
   const activeAddress = window.ethereum?.selectedAddress;
-  const isMember = activeAddress ? members.includes(activeAddress) : false;
-  const hasContributed = activeAddress ? contributions[activeAddress] : false;
+  const normalizedActiveAddress = activeAddress?.toLowerCase();
+  const isMember = normalizedActiveAddress
+    ? members.some((member) => member.toLowerCase() === normalizedActiveAddress)
+    : false;
+  const hasContributed = normalizedActiveAddress
+    ? Object.entries(contributions).some(
+        ([member, contributed]) => member.toLowerCase() === normalizedActiveAddress && contributed
+      )
+    : false;
   const allMembersContributed = useMemo(
     () => members.length > 0 && members.every((member) => contributions[member]),
     [members, contributions]
   );
+  const cycleDeadlinePassed = useMemo(() => {
+    if (!circleData || circleData.status !== 'Active') {
+      return false;
+    }
+
+    const deadline = circleData.cycleStart + circleData.cycleDuration;
+    return Math.floor(Date.now() / 1000) > deadline;
+  }, [circleData]);
   const gracePeriodPassed = useMemo(() => {
     if (!circleData || circleData.status !== 'Active') {
       return false;
@@ -287,7 +318,10 @@ export default function CircleDetail() {
     return Math.floor(Date.now() / 1000) > graceDeadline;
   }, [circleData]);
   const canDistributePayout =
-    isMember && circleData?.status === 'Active' && (allMembersContributed || gracePeriodPassed);
+    isMember &&
+    circleData?.status === 'Active' &&
+    cycleDeadlinePassed &&
+    (allMembersContributed || gracePeriodPassed);
 
   const timeLeftLabel = useMemo(() => {
     if (!circleData) {
@@ -319,6 +353,11 @@ export default function CircleDetail() {
 
   const handleContribute = async () => {
     if (!circleData || !circleAddress || !ethereum) {
+      return;
+    }
+
+    if (circleData.status !== 'Active' || cycleDeadlinePassed) {
+      showToast('Contribution deadline has passed for this cycle.', 'warning');
       return;
     }
 
@@ -387,8 +426,12 @@ export default function CircleDetail() {
       return;
     }
 
-    if (circleData.status !== 'Active' || (!allMembersContributed && !gracePeriodPassed)) {
-      showToast('Payout is available after all members contribute or after the 24-hour grace period.', 'warning');
+    if (
+      circleData.status !== 'Active' ||
+      !cycleDeadlinePassed ||
+      (!allMembersContributed && !gracePeriodPassed)
+    ) {
+      showToast('Payout is available after the cycle deadline once all members have contributed, or after the 24-hour grace period.', 'warning');
       return;
     }
 
@@ -430,13 +473,13 @@ export default function CircleDetail() {
 
   const handleGenerateInvite = async () => {
     if (!circleAddress || !circleId) return;
-    
+
     setGeneratingInvite(true);
     try {
       const response = await api.generateInviteCode(circleAddress, 720);
       const inviteCode = response.shortCode || response.inviteCode;
       const link = inviteCode ? `${window.location.origin}/join/${inviteCode}` : '';
-      
+
       if (inviteCode) {
         setInviteLink(link);
         showToast('Invite link generated!', 'success');
@@ -609,11 +652,17 @@ export default function CircleDetail() {
                   <AddressDisplay address={circleData.organizer} className="mt-1" />
                 </div>
 
-                {isMember && circleData.status === 'Active' && !hasContributed ? (
+                {isMember && circleData.status === 'Active' && !hasContributed && !cycleDeadlinePassed ? (
                   <Button fullWidth onClick={() => setShowConfirmContribution(true)} loading={contributing}>
                     <CurrencyDollarIcon className="h-4 w-4" />
                     Contribute {formatUsd(circleData.contributionAmount)}
                   </Button>
+                ) : null}
+
+                {isMember && circleData.status === 'Active' && !hasContributed && cycleDeadlinePassed ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+                    Contribution deadline has passed for this cycle.
+                  </div>
                 ) : null}
 
                 {hasContributed ? (
@@ -667,7 +716,7 @@ export default function CircleDetail() {
                     <ExclamationTriangleIcon className="h-5 w-5" />
                     <span>Defaulter: <AddressDisplay address={circleData.currentDefaulter || ''} className="inline-block" /></span>
                   </div>
-                  
+
                   <div className="flex gap-4 p-4 border rounded-xl bg-app-elevated">
                     <div className="flex-1 text-center">
                       <p className="text-lg font-bold">{circleData.continueVotes}</p>
@@ -719,9 +768,9 @@ export default function CircleDetail() {
                         <div className="flex items-center gap-2">
                           <StatusBadge status={contributions[member] ? 'Active' : 'Pending'} />
                           {isMember && circleData.status === 'Active' && !contributions[member] && gracePeriodPassed && (
-                            <Button 
-                              size="sm" 
-                              variant="secondary" 
+                            <Button
+                              size="sm"
+                              variant="secondary"
                               className="!py-1 !text-xs bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400"
                               onClick={() => handleMarkDefaulter(member)}
                               loading={markingDefaulter}
@@ -745,15 +794,36 @@ export default function CircleDetail() {
                 />
               ) : (
                 <ol className="space-y-2">
-                  {payoutOrder.map((recipient, index) => (
+                  {payoutOrder.map((recipient, index) => {
+                    const payoutStatus =
+                      index < circleData.currentCycle
+                        ? 'Paid'
+                        : index === circleData.currentCycle && circleData.status === 'Active'
+                          ? 'Current recipient'
+                          : 'Upcoming';
+
+                    const payoutStatusClass =
+                      payoutStatus === 'Paid'
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : payoutStatus === 'Current recipient'
+                          ? 'text-primary-700 dark:text-primary-300'
+                          : 'text-muted';
+
+                    return (
                       <li
                         key={`${recipient}-${index}`}
-                        className="flex items-center justify-between rounded-xl border bg-app-elevated px-3 py-2.5"
+                        className="flex items-center justify-between gap-3 rounded-xl border bg-app-elevated px-3 py-2.5"
                       >
-                      <span className="text-sm font-semibold text-[color:var(--text-primary)]">Cycle {index + 1}</span>
-                      <AddressDisplay address={recipient} />
-                    </li>
-                  ))}
+                        <div>
+                          <span className="text-sm font-semibold text-[color:var(--text-primary)]">
+                            Cycle {index + 1}
+                          </span>
+                          <p className={`text-xs font-semibold ${payoutStatusClass}`}>{payoutStatus}</p>
+                        </div>
+                        <AddressDisplay address={recipient} />
+                      </li>
+                    );
+                  })}
                 </ol>
               )}
             </Card>

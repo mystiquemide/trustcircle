@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPublicClient, createWalletClient, custom, parseAbiItem } from 'viem';
+import { createPublicClient, createWalletClient, custom, decodeEventLog } from 'viem';
 import { ArrowLeftIcon, ClipboardDocumentIcon, LinkIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { TRUST_CIRCLE_FACTORY_ABI } from '../contracts/TrustCircleFactory';
 import { TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/addresses';
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
+import { trackCircleLocally } from '../lib/circle';
 import { buildLocalInviteCode, saveLocalInvite } from '../lib/invites';
 import { formatUsd } from '../lib/format';
 import { Button, Card, ConfirmDialog } from '../components/common';
@@ -18,7 +19,6 @@ interface CircleFormValues {
   contributionAmount: string;
   cycleDuration: number;
   payoutOrderMethod: number;
-  requiredCollateral: string;
   isPublic: boolean;
 }
 
@@ -28,11 +28,11 @@ const initialValues: CircleFormValues = {
   contributionAmount: '50',
   cycleDuration: 604800,
   payoutOrderMethod: 0,
-  requiredCollateral: '10',
   isPublic: false,
 };
 
-const circleCreatedEvent = parseAbiItem('event CircleCreated(uint256 circleId, address organizer)');
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function CreateCircle() {
   const navigate = useNavigate();
@@ -47,9 +47,8 @@ export default function CreateCircle() {
 
   const parsedContributionAmount = Number.parseFloat(values.contributionAmount);
   const contributionAmount = Number.isFinite(parsedContributionAmount) ? parsedContributionAmount : 0;
-  
-  const parsedRequiredCollateral = Number.parseFloat(values.requiredCollateral);
-  const requiredCollateral = Number.isFinite(parsedRequiredCollateral) ? parsedRequiredCollateral : 0;
+
+  const requiredCollateral = contributionAmount * values.memberCount;
 
   const handleInputChange = <K extends keyof CircleFormValues>(key: K, value: CircleFormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -70,16 +69,13 @@ export default function CreateCircle() {
 
   const createCircle = async () => {
     setLoading(true);
+    setIsAborted(false);
     setInviteLink('');
     setNewCircleId(null);
 
     try {
       if (contributionAmount < 1) {
         throw new Error('Contribution amount must be at least 1 USDC.');
-      }
-      
-      if (requiredCollateral < 0) {
-        throw new Error('Collateral cannot be negative.');
       }
 
       if (!window.ethereum) {
@@ -94,11 +90,35 @@ export default function CreateCircle() {
       const publicClient = createPublicClient({
         transport: custom(window.ethereum),
         chain: arcTestnet,
+        pollingInterval: 10_000,
       });
 
       const account = (await walletClient.getAddresses())[0];
       if (!account) {
         throw new Error('No wallet address found');
+      }
+
+      let chainNonce: number | undefined;
+      try {
+        chainNonce = await publicClient.getTransactionCount({
+          address: account,
+          blockTag: 'pending',
+        });
+      } catch (nonceError) {
+        console.warn('Could not read current wallet nonce before creation:', nonceError);
+      }
+
+      let predictedCircleId: number | null = null;
+      try {
+        predictedCircleId = Number(
+          await publicClient.readContract({
+            address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
+            abi: TRUST_CIRCLE_FACTORY_ABI,
+            functionName: 'circleIdCounter',
+          })
+        );
+      } catch (counterError) {
+        console.warn('Could not read next circle id before creation:', counterError);
       }
 
       const hash = await walletClient.writeContract({
@@ -114,95 +134,156 @@ export default function CreateCircle() {
           BigInt(Math.round(requiredCollateral * 10 ** 6)),
         ],
         account,
+        nonce: chainNonce,
       });
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      console.log('Transaction hash:', hash);
+      const submittedTransaction = await publicClient.getTransaction({ hash }).catch(() => null);
+
+      if (
+        submittedTransaction &&
+        chainNonce !== undefined &&
+        Number(submittedTransaction.nonce) > chainNonce
+      ) {
+        throw new Error(
+          `Wallet submitted nonce ${submittedTransaction.nonce}, but Arc is waiting for nonce ${chainNonce}. Reset the wallet account activity/nonce and try again.`
+        );
+      }
+
+      let receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>> | null = null;
+      let receiptError: unknown = null;
+
+      try {
+        receipt = await publicClient.waitForTransactionReceipt({
+          hash,
+          timeout: 300_000,
+          pollingInterval: 10_000,
+        });
+      } catch (error) {
+        receiptError = error;
+      }
 
       let circleId: number | null = null;
       let circleAddress = '';
 
-      try {
-        const createdLogs = await publicClient.getLogs({
-          address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
-          event: circleCreatedEvent,
-          fromBlock: receipt.blockNumber,
-          toBlock: receipt.blockNumber,
-        });
+      if (receipt) {
+        console.log('Receipt status:', receipt.status);
 
-        const matchedLog = createdLogs.find((entry) => entry.transactionHash === hash);
-        if (matchedLog) {
-          circleId = Number(matchedLog.args.circleId);
-        }
-      } catch {
-        // fallback to scanning below
-      }
-
-      if (circleId !== null) {
-        try {
-          const resolvedAddress = (await publicClient.readContract({
-            address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
-            abi: TRUST_CIRCLE_FACTORY_ABI,
-            functionName: 'getCircle',
-            args: [BigInt(circleId)],
-          })) as string;
-
-          if (resolvedAddress && resolvedAddress !== '0x0000000000000000000000000000000000000000') {
-            circleAddress = resolvedAddress;
-          }
-        } catch {
-          // fallback to scanning below
-        }
-      }
-
-      if (!circleAddress) {
-        let lastValidId: number | null = null;
-        for (let i = 0; i < 1000; i += 1) {
+        for (const log of receipt.logs) {
           try {
-            const address = (await publicClient.readContract({
+            const decoded = decodeEventLog({
+              abi: TRUST_CIRCLE_FACTORY_ABI,
+              data: log.data,
+              topics: log.topics,
+            });
+
+            if (decoded.eventName === 'CircleCreated') {
+              circleId = Number((decoded.args as any).circleId);
+              console.log('Detected circleId from logs:', circleId);
+              break;
+            }
+          } catch (e) {
+            // ignore non-matching logs
+          }
+        }
+      } else {
+        console.warn('Receipt polling timed out. Attempting to recover circle from factory state.', receiptError);
+      }
+
+      const resolveCircleAddress = async (id: number) => {
+        for (let attempt = 0; attempt < 36; attempt++) {
+          try {
+            const resolved = (await publicClient.readContract({
               address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
               abi: TRUST_CIRCLE_FACTORY_ABI,
-              functionName: 'getCircle',
-              args: [BigInt(i)],
+              functionName: 'circles',
+              args: [BigInt(id)],
             })) as string;
+            if (resolved && resolved !== ZERO_ADDRESS) {
+              return resolved;
+            }
+          } catch {
+            // wallet RPC may lag the submitted transaction briefly
+          }
+          await sleep(5000);
+        }
 
-            if (address && address !== '0x0000000000000000000000000000000000000000') {
-              lastValidId = i;
-              circleAddress = address;
-            } else {
+        return '';
+      };
+
+      if (circleId === null && predictedCircleId !== null) {
+        const recoveredAddress = await resolveCircleAddress(predictedCircleId);
+        if (recoveredAddress) {
+          circleId = predictedCircleId;
+          circleAddress = recoveredAddress;
+        }
+      }
+
+      if (circleId === null) {
+        throw new Error(`Transaction submitted but the circle was not confirmed yet. Hash: ${hash}`);
+      }
+
+      // Best-effort address resolution — the RPC may be slow to sync after writes.
+      // This is NOT fatal: we already have circleId from the event logs which is
+      // all we need for navigation. The CircleDetail page will resolve the address.
+      try {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            const resolved = (await publicClient.readContract({
+              address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
+              abi: TRUST_CIRCLE_FACTORY_ABI,
+              functionName: 'circles',
+              args: [BigInt(circleId)],
+            })) as string;
+            if (resolved && resolved !== '0x0000000000000000000000000000000000000000') {
+              circleAddress = resolved;
               break;
             }
           } catch {
-            break;
+            // RPC not ready yet, will retry
           }
+          await new Promise((r) => setTimeout(r, 2000));
         }
-
-        circleId = lastValidId;
+      } catch {
+        // Completely non-fatal — address will be resolved by CircleDetail page
       }
 
-      if (!circleAddress || circleId === null) {
-        throw new Error('Circle created but could not resolve circle details.');
+      if (!circleAddress) {
+        circleAddress = await resolveCircleAddress(circleId);
       }
+
+      console.log('Circle creation complete. ID:', circleId, 'Address:', circleAddress || '(pending resolution)');
 
       showToast('Circle created successfully.', 'success');
       window.localStorage.removeItem('trustcircle_home_cache');
       setNewCircleId(circleId);
 
-      try {
-        await api.saveCircleMetadata(
-          circleAddress,
-          values.name,
-          `Created with ${values.memberCount} members`,
-          values.isPublic
-        );
+      // Backend metadata sync — best effort, uses address if available
+      if (circleAddress) {
+        trackCircleLocally(account, circleAddress);
+        void api.trackCircle(account, circleAddress).catch((error) => {
+          console.warn('Failed to track created circle:', error);
+        });
 
-        const inviteResponse = await api.generateInviteCode(circleAddress, 720);
-        setInviteLink(`/join/${inviteResponse.shortCode || circleId}`);
-      } catch (apiError) {
-        console.error('Failed to save circle metadata:', apiError);
-
-        const localInviteCode = buildLocalInviteCode(circleAddress, circleId);
-        saveLocalInvite(localInviteCode, circleAddress, circleId);
-        setInviteLink(`/join/${localInviteCode}`);
+        try {
+          await api.saveCircleMetadata(
+            circleAddress,
+            values.name,
+            `Created with ${values.memberCount} members`,
+            values.isPublic,
+            circleId
+          );
+          const inviteResponse = await api.generateInviteCode(circleAddress, 720);
+          setInviteLink(`/join/${inviteResponse.shortCode || circleId}`);
+        } catch (apiError) {
+          console.warn('Backend metadata sync failed (non-fatal):', apiError);
+          const localInviteCode = buildLocalInviteCode(circleAddress, circleId);
+          saveLocalInvite(localInviteCode, circleAddress, circleId);
+          setInviteLink(`/join/${localInviteCode}`);
+        }
+      } else {
+        // No address yet — generate a simple invite using circleId only
+        setInviteLink(`/join/${circleId}`);
       }
     } catch (error) {
       if (isAborted) return;
@@ -313,8 +394,8 @@ export default function CreateCircle() {
               Create Circle
             </Button>
             {loading && (
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setIsAborted(true);
                   setLoading(false);

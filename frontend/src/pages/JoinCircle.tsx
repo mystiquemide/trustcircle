@@ -12,6 +12,7 @@ import { TRUST_CIRCLE_FACTORY_ABI } from '../contracts/TrustCircleFactory';
 import { CONTRACT_ADDRESSES, TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/addresses';
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
+import { trackCircleLocally } from '../lib/circle';
 import { getLocalInvite } from '../lib/invites';
 import { formatCycleDuration, formatUsd, truncateAddress } from '../lib/format';
 import { Button, Card, ConfirmDialog, StatusBadge } from '../components/common';
@@ -22,11 +23,14 @@ interface CirclePreview {
   name: string;
   memberCount: number;
   contributionAmount: number;
+  requiredCollateral: number;
+  supportsCollateral: boolean;
   cycleDuration: number;
   status: number;
 }
 
 const isNumericId = (value: string) => /^\d+$/.test(value);
+const isAddressInvite = (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value);
 
 export default function JoinCircle() {
   const { inviteCode = '' } = useParams<{ inviteCode: string }>();
@@ -37,6 +41,7 @@ export default function JoinCircle() {
   const [circleId, setCircleId] = useState<string>('');
   const [circleData, setCircleData] = useState<CirclePreview | null>(null);
   const [usdcBalance, setUsdcBalance] = useState(0);
+  const [collateralLocked, setCollateralLocked] = useState(0);
   const [balanceCheckFailed, setBalanceCheckFailed] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,6 +55,7 @@ export default function JoinCircle() {
 
     const loadCircle = async () => {
       setLoading(true);
+      setCollateralLocked(0);
       try {
         if (!window.ethereum) {
           throw new Error('No wallet detected. Install a wallet to continue.');
@@ -63,11 +69,14 @@ export default function JoinCircle() {
         let resolvedAddress = '';
         let resolvedCircleId = inviteCode;
 
-        if (isNumericId(inviteCode)) {
+        if (isAddressInvite(inviteCode)) {
+          resolvedAddress = inviteCode;
+          resolvedCircleId = inviteCode;
+        } else if (isNumericId(inviteCode)) {
           const address = await publicClient.readContract({
             address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
             abi: TRUST_CIRCLE_FACTORY_ABI,
-            functionName: 'getCircle',
+            functionName: 'circles',
             args: [BigInt(inviteCode)],
           });
           resolvedAddress = address as string;
@@ -82,7 +91,7 @@ export default function JoinCircle() {
                 const candidate = (await publicClient.readContract({
                   address: TRUST_CIRCLE_FACTORY_ADDRESS as `0x${string}`,
                   abi: TRUST_CIRCLE_FACTORY_ABI,
-                  functionName: 'getCircle',
+                  functionName: 'circles',
                   args: [BigInt(i)],
                 })) as string;
 
@@ -118,7 +127,7 @@ export default function JoinCircle() {
         setCircleAddress(resolvedAddress);
         setCircleId(resolvedCircleId);
 
-        const [name, memberCount, contributionAmount, cycleDuration, status] = await Promise.all([
+        const [name, memberCount, contributionAmount, cycleDuration, status, requiredCollateralResult] = await Promise.all([
           publicClient.readContract({
             address: resolvedAddress as `0x${string}`,
             abi: TRUST_CIRCLE_ABI,
@@ -144,12 +153,22 @@ export default function JoinCircle() {
             abi: TRUST_CIRCLE_ABI,
             functionName: 'status',
           }),
+          publicClient.readContract({
+            address: resolvedAddress as `0x${string}`,
+            abi: TRUST_CIRCLE_ABI,
+            functionName: 'requiredCollateral',
+          }).catch(() => null),
         ]);
+
+        const supportsCollateral = requiredCollateralResult !== null && Number(requiredCollateralResult) > 0;
+        const requiredCollateral = supportsCollateral ? Number(requiredCollateralResult) / 10 ** 6 : 0;
 
         setCircleData({
           name: name as string,
           memberCount: Number(memberCount),
           contributionAmount: Number(contributionAmount) / 10 ** 6,
+          requiredCollateral,
+          supportsCollateral,
           cycleDuration: Number(cycleDuration),
           status: Number(status),
         });
@@ -168,6 +187,23 @@ export default function JoinCircle() {
             setIsMember(Boolean(memberCheck));
           } catch {
             setIsMember(false);
+          }
+
+          if (supportsCollateral) {
+            try {
+              const locked = await publicClient.readContract({
+                address: resolvedAddress as `0x${string}`,
+                abi: TRUST_CIRCLE_ABI,
+                functionName: 'collateralLocked',
+                args: [activeAddress as `0x${string}`],
+              });
+
+              setCollateralLocked(Number(locked) / 10 ** 6);
+            } catch {
+              setCollateralLocked(0);
+            }
+          } else {
+            setCollateralLocked(0);
           }
 
           try {
@@ -221,7 +257,11 @@ export default function JoinCircle() {
     }
   }, [circleData?.status]);
 
-  const hasEnoughUSDC = circleData ? usdcBalance >= circleData.contributionAmount : false;
+  const needsCollateralLock = Boolean(
+    circleData?.supportsCollateral && collateralLocked < circleData.requiredCollateral
+  );
+  const balanceRequiredToJoin = needsCollateralLock ? circleData?.requiredCollateral ?? 0 : 0;
+  const hasEnoughUSDC = !needsCollateralLock || usdcBalance >= balanceRequiredToJoin;
   const canJoin = Boolean(circleData && !isMember && circleData.status === 0 && (hasEnoughUSDC || balanceCheckFailed));
 
   const handleJoin = async () => {
@@ -250,26 +290,39 @@ export default function JoinCircle() {
         throw new Error('No wallet address found');
       }
 
-      const approveHash = await walletClient.writeContract({
-        address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
-        abi: [
-          {
-            constant: false,
-            inputs: [
-              { name: '_spender', type: 'address' },
-              { name: '_value', type: 'uint256' },
-            ],
-            name: 'approve',
-            outputs: [{ name: '', type: 'bool' }],
-            type: 'function',
-          },
-        ],
-        functionName: 'approve',
-        args: [circleAddress as `0x${string}`, BigInt(circleData.contributionAmount * 10 ** 6)],
-        account,
-      });
+      if (needsCollateralLock) {
+        const collateralAmount = BigInt(Math.round(circleData.requiredCollateral * 10 ** 6));
 
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        const approveHash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.USDC as `0x${string}`,
+          abi: [
+            {
+              constant: false,
+              inputs: [
+                { name: '_spender', type: 'address' },
+                { name: '_value', type: 'uint256' },
+              ],
+              name: 'approve',
+              outputs: [{ name: '', type: 'bool' }],
+              type: 'function',
+            },
+          ],
+          functionName: 'approve',
+          args: [circleAddress as `0x${string}`, collateralAmount],
+          account,
+        });
+
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+        const lockHash = await walletClient.writeContract({
+          address: circleAddress as `0x${string}`,
+          abi: TRUST_CIRCLE_ABI,
+          functionName: 'lockCollateral',
+          account,
+        });
+
+        await publicClient.waitForTransactionReceipt({ hash: lockHash });
+      }
 
       const joinHash = await walletClient.writeContract({
         address: circleAddress as `0x${string}`,
@@ -280,17 +333,22 @@ export default function JoinCircle() {
 
       await publicClient.waitForTransactionReceipt({ hash: joinHash });
 
-      void api.recordInviteJoin(inviteCode, account).catch((error) => {
-        console.error('Failed to record invite join:', error);
-      });
+      if (!isAddressInvite(inviteCode)) {
+        void api.recordInviteJoin(inviteCode, account).catch((error) => {
+          console.error('Failed to record invite join:', error);
+        });
+      }
+
+      trackCircleLocally(account, circleAddress);
       void api.trackCircle(account, circleAddress).catch((error) => {
         console.error('Failed to track circle:', error);
       });
 
       window.localStorage.removeItem('trustcircle_home_cache');
+      setIsMember(true);
 
       showToast('Joined circle successfully.', 'success');
-      navigate(`/circle/${circleId}`);
+      navigate(`/circle/${circleId || circleAddress}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to join circle';
       showToast(message, 'error');
@@ -338,6 +396,14 @@ export default function JoinCircle() {
                   {formatUsd(circleData.contributionAmount)}
                 </p>
               </div>
+              {circleData.supportsCollateral ? (
+                <div className="rounded-xl border bg-app-elevated p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Required Collateral</p>
+                  <p className="mt-1 text-lg font-bold text-[color:var(--text-primary)]">
+                    {formatUsd(circleData.requiredCollateral)}
+                  </p>
+                </div>
+              ) : null}
               <div className="rounded-xl border bg-app-elevated p-3">
                 <p className="text-xs uppercase tracking-wide text-muted">Members</p>
                 <p className="mt-1 text-lg font-bold text-[color:var(--text-primary)]">{circleData.memberCount}</p>
@@ -360,6 +426,15 @@ export default function JoinCircle() {
                 </p>
               </div>
 
+              {circleData.supportsCollateral ? (
+                <div className="rounded-xl border bg-app-elevated p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Collateral Locked</p>
+                  <p className="mt-1 text-lg font-bold text-[color:var(--text-primary)]">
+                    {formatUsd(collateralLocked)}
+                  </p>
+                </div>
+              ) : null}
+
               {isMember ? (
                 <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-950/40 dark:text-emerald-200">
                   <CheckCircleIcon className="h-5 w-5" />
@@ -369,7 +444,9 @@ export default function JoinCircle() {
 
               {!hasEnoughUSDC && !balanceCheckFailed && !isMember ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200">
-                  <p>Balance is below required contribution.</p>
+                  <p>
+                    Balance is below the required {circleData.supportsCollateral ? 'collateral' : 'join amount'}.
+                  </p>
                   <a
                     href="https://faucet.circle.com/"
                     target="_blank"
@@ -401,8 +478,12 @@ export default function JoinCircle() {
         onClose={() => setShowConfirm(false)}
         onConfirm={handleJoin}
         title="Join this circle?"
-        message={`You will approve and contribute ${circleData ? formatUsd(circleData.contributionAmount) : '$0.00'} each cycle.`}
-        confirmLabel="Approve & Join"
+        message={
+          circleData?.supportsCollateral
+            ? `You will approve and lock ${formatUsd(circleData.requiredCollateral)} as collateral before joining.`
+            : 'You will join this pending circle.'
+        }
+        confirmLabel={circleData?.supportsCollateral ? 'Approve, Lock & Join' : 'Join Circle'}
         loading={joining}
       />
     </div>

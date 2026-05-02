@@ -1,28 +1,62 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
+const { createLocalFirestore } = require('./lib/localFirestore');
 require('dotenv').config();
 
-// Initialize Firebase Admin
-const serviceAccount = {
+const normalizePrivateKey = (privateKey) =>
+  privateKey ? privateKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n') : undefined;
+
+const serviceAccountFromEnv = {
   type: process.env.FIREBASE_TYPE,
   project_id: process.env.FIREBASE_PROJECT_ID,
   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  private_key: normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
   client_email: process.env.FIREBASE_CLIENT_EMAIL,
   client_id: process.env.FIREBASE_CLIENT_ID,
   auth_uri: process.env.FIREBASE_AUTH_URI,
   token_uri: process.env.FIREBASE_TOKEN_URI,
   auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-  client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
+  client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
 };
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+const serviceAccountKeyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+const serviceAccountFromFile = fs.existsSync(serviceAccountKeyPath)
+  ? require(serviceAccountKeyPath)
+  : null;
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const serviceAccount = serviceAccountFromFile || serviceAccountFromEnv;
+const hasUsableServiceAccount = Boolean(
+  serviceAccount.private_key &&
+    serviceAccount.private_key.includes('BEGIN PRIVATE KEY') &&
+    !serviceAccount.private_key.includes('...')
+);
+
+let db;
+let messaging = null;
+
+try {
+  if (hasUsableServiceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    db = admin.firestore();
+    messaging = admin.messaging();
+  } else if (process.env.FIRESTORE_EMULATOR_HOST) {
+    admin.initializeApp({ projectId: serviceAccount.project_id || 'demo-project' });
+    db = admin.firestore();
+    messaging = admin.messaging();
+  } else {
+    console.warn('Firebase credentials missing or placeholder. Using local development datastore.');
+    db = createLocalFirestore(path.join(__dirname, '..', '.local-firestore.json'));
+  }
+} catch (error) {
+  console.error('Firebase initialization failed (check your credentials):', error);
+  console.warn('Falling back to local development datastore.');
+  db = createLocalFirestore(path.join(__dirname, '..', '.local-firestore.json'));
+}
 
 // Initialize Express
 const app = express();
