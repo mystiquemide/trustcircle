@@ -11,6 +11,7 @@ import { LoadingSkeleton, EmptyState } from '../components/feedback';
 import { Input } from '../components/forms';
 import { fetchUserCircles, fetchPublicCircles, type CircleInfo } from '../lib/circle';
 import { formatTimeLeft, formatUsd } from '../lib/format';
+import { getUserErrorMessage, logError } from '../lib/errors';
 import { useWalletContext } from '../providers/WalletProvider';
 import { useToast } from '../providers/ToastProvider';
 
@@ -116,8 +117,8 @@ export default function Home() {
         setCircles(nextCircles);
         saveCachedCircles(nextCircles);
       } catch (loadError) {
-        const message = loadError instanceof Error ? loadError.message : 'Failed to load circles.';
-        setError(message);
+        logError('Failed to load circles:', loadError);
+        setError(getUserErrorMessage('Unable to load circles. Please try again.'));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -150,8 +151,8 @@ export default function Home() {
       await publicPromise;
       showToast('Circles refreshed.', 'success');
     } catch (refreshError) {
-      const message = refreshError instanceof Error ? refreshError.message : 'Refresh failed.';
-      showToast(message, 'error');
+      logError('Failed to refresh circles:', refreshError);
+      showToast(getUserErrorMessage('Unable to refresh circles. Please try again.'), 'error');
     } finally {
       setRefreshing(false);
     }

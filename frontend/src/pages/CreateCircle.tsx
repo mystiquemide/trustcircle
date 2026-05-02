@@ -7,6 +7,7 @@ import { TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/addresses';
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
 import { trackCircleLocally } from '../lib/circle';
+import { getUserErrorMessage, logError } from '../lib/errors';
 import { buildLocalInviteCode, saveLocalInvite } from '../lib/invites';
 import { formatUsd } from '../lib/format';
 import { Button, Card, ConfirmDialog } from '../components/common';
@@ -287,8 +288,8 @@ export default function CreateCircle() {
       }
     } catch (error) {
       if (isAborted) return;
-      const message = error instanceof Error ? error.message : 'Failed to create circle';
-      showToast(message, 'error');
+      logError('Failed to create circle:', error);
+      showToast(getUserErrorMessage('Unable to create circle. Please try again.'), 'error');
     } finally {
       setLoading(false);
       setShowConfirm(false);

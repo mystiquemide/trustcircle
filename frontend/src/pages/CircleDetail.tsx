@@ -16,6 +16,7 @@ import { CONTRACT_ADDRESSES, TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/a
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
 import { formatCycleDuration, formatTimeLeft, formatUsd } from '../lib/format';
+import { getUserErrorMessage, logError } from '../lib/errors';
 import { buildLocalInviteCode } from '../lib/invites';
 import { AddressDisplay, Button, Card, ConfirmDialog, StatusBadge } from '../components/common';
 import { LoadingSkeleton, EmptyState } from '../components/feedback';
@@ -276,8 +277,8 @@ export default function CircleDetail() {
             console.warn('Failed to load backend metadata:', error);
           });
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to load circle details.';
-        showToast(message, 'error');
+        logError('Failed to load circle details:', error);
+        showToast(getUserErrorMessage('Unable to load circle details. Please try again.'), 'error');
         setCircleData(null);
       } finally {
         setLoading(false);
@@ -413,8 +414,8 @@ export default function CircleDetail() {
         [account]: true,
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Contribution failed.';
-      showToast(message, 'error');
+      logError('Contribution failed:', error);
+      showToast(getUserErrorMessage('Unable to complete contribution. Please try again.'), 'error');
     } finally {
       setContributing(false);
       setShowConfirmContribution(false);
@@ -463,8 +464,8 @@ export default function CircleDetail() {
       showToast('Payout distributed successfully.', 'success');
       setRefreshIndex((current) => current + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Payout distribution failed.';
-      showToast(message, 'error');
+      logError('Payout distribution failed:', error);
+      showToast(getUserErrorMessage('Unable to distribute payout. Please try again.'), 'error');
     } finally {
       setDistributingPayout(false);
       setShowConfirmDistribute(false);
@@ -534,8 +535,8 @@ export default function CircleDetail() {
       showToast('Member marked as defaulter. Circle is paused.', 'success');
       setRefreshIndex((current) => current + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to mark defaulter.';
-      showToast(message, 'error');
+      logError('Failed to mark defaulter:', error);
+      showToast(getUserErrorMessage('Unable to mark defaulter. Please try again.'), 'error');
     } finally {
       setMarkingDefaulter(false);
     }
@@ -569,8 +570,8 @@ export default function CircleDetail() {
       showToast('Vote cast successfully.', 'success');
       setRefreshIndex((current) => current + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to cast vote.';
-      showToast(message, 'error');
+      logError('Failed to cast vote:', error);
+      showToast(getUserErrorMessage('Unable to cast vote. Please try again.'), 'error');
     } finally {
       setVoting(false);
     }

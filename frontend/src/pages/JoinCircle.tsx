@@ -13,6 +13,7 @@ import { CONTRACT_ADDRESSES, TRUST_CIRCLE_FACTORY_ADDRESS } from '../contracts/a
 import { arcTestnet } from '../lib/arcChain';
 import { api } from '../lib/api';
 import { trackCircleLocally } from '../lib/circle';
+import { getUserErrorMessage, logError } from '../lib/errors';
 import { getLocalInvite } from '../lib/invites';
 import { formatCycleDuration, formatUsd, truncateAddress } from '../lib/format';
 import { Button, Card, ConfirmDialog, StatusBadge } from '../components/common';
@@ -229,8 +230,8 @@ export default function JoinCircle() {
           }
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to load invite.';
-        showToast(message, 'error');
+        logError('Failed to load invite:', error);
+        showToast(getUserErrorMessage('Unable to load this invite. Please check the link and try again.'), 'error');
         setCircleData(null);
       } finally {
         setLoading(false);
@@ -350,8 +351,8 @@ export default function JoinCircle() {
       showToast('Joined circle successfully.', 'success');
       navigate(`/circle/${circleId || circleAddress}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to join circle';
-      showToast(message, 'error');
+      logError('Failed to join circle:', error);
+      showToast(getUserErrorMessage('Unable to join circle. Please try again.'), 'error');
     } finally {
       setJoining(false);
       setShowConfirm(false);

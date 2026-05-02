@@ -544,7 +544,7 @@ export const fetchPublicCircles = async (maxCircles = 100): Promise<CircleInfo[]
 
   for (let index = 0; index < publicMetadata.length; index += 1) {
     const circle = await fetchCircleByMetadata(publicMetadata[index], index);
-    if (circle.status === 'Pending') {
+    if (circle.status !== 'Resolved' && circle.status !== 'Dissolved') {
       circles.push(circle);
     }
   }
