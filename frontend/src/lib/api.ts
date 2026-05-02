@@ -93,6 +93,13 @@ class ApiClient {
     return this.request<any>('GET', `/api/circles/${contractAddress}`);
   }
 
+  async updateCircleMetadata(
+    contractAddress: string,
+    data: { name?: string; description?: string; isPublic?: boolean }
+  ) {
+    return this.request<any>('PUT', `/api/circles/${contractAddress}`, data);
+  }
+
   async listCircles(options: { isPublic?: boolean; limit?: number; offset?: number } = {}) {
     const params = new URLSearchParams();
 

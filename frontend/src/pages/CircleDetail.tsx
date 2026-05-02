@@ -37,6 +37,7 @@ interface CircleData {
   continueVotes?: number;
   dissolveVotes?: number;
   hasVoted?: boolean;
+  isPublic?: boolean;
 }
 
 type Contributions = Record<string, boolean>;
@@ -86,6 +87,7 @@ export default function CircleDetail() {
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [inviteLink, setInviteLink] = useState<string>('');
   const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [removingPublicListing, setRemovingPublicListing] = useState(false);
   const ethereum = window.ethereum;
 
   useEffect(() => {
@@ -310,8 +312,16 @@ export default function CircleDetail() {
         void api
           .getCircleMetadata(address)
           .then((metadata) => {
-            if (metadata?.description) {
-              setCircleData((current) => (current ? { ...current, description: metadata.description } : current));
+            if (metadata?.description || typeof metadata?.isPublic === 'boolean') {
+              setCircleData((current) =>
+                current
+                  ? {
+                      ...current,
+                      description: metadata.description || current.description,
+                      isPublic: metadata.isPublic,
+                    }
+                  : current
+              );
             }
           })
           .catch((error) => {
@@ -538,6 +548,22 @@ export default function CircleDetail() {
     }
   };
 
+  const handleRemovePublicListing = async () => {
+    if (!circleAddress || !circleData) return;
+
+    setRemovingPublicListing(true);
+    try {
+      await api.updateCircleMetadata(circleAddress, { isPublic: false });
+      setCircleData((current) => (current ? { ...current, isPublic: false } : current));
+      showToast('Circle removed from Public Circles.', 'success');
+    } catch (error) {
+      logError('Failed to remove public listing:', error);
+      showToast(getUserErrorMessage('Unable to remove public listing. Please try again.'), 'error');
+    } finally {
+      setRemovingPublicListing(false);
+    }
+  };
+
   const copyInviteLink = async () => {
     if (!inviteLink) return;
     try {
@@ -744,6 +770,16 @@ export default function CircleDetail() {
                         </Button>
                       </div>
                     )}
+                    {circleData.isPublic ? (
+                      <Button
+                        fullWidth
+                        variant="secondary"
+                        onClick={handleRemovePublicListing}
+                        loading={removingPublicListing}
+                      >
+                        Remove from Public Circles
+                      </Button>
+                    ) : null}
                   </div>
                 )}
               </div>
