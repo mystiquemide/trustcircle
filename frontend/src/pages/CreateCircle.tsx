@@ -33,6 +33,7 @@ const initialValues: CircleFormValues = {
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const pendingMetadataKey = (circleId: number) => `trustcircle_pending_circle_metadata_${circleId}`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function CreateCircle() {
@@ -255,6 +256,19 @@ export default function CreateCircle() {
 
       console.log('Circle creation complete. ID:', circleId, 'Address:', circleAddress || '(pending resolution)');
 
+      const pendingMetadata = {
+        name: values.name,
+        description: `Created with ${values.memberCount} members`,
+        isPublic: values.isPublic,
+        circleId,
+      };
+
+      try {
+        window.localStorage.setItem(pendingMetadataKey(circleId), JSON.stringify(pendingMetadata));
+      } catch {
+        // non-fatal: CircleDetail can still sync basic metadata from chain
+      }
+
       showToast('Circle created successfully.', 'success');
       window.localStorage.removeItem('trustcircle_home_cache');
       setNewCircleId(circleId);
@@ -274,6 +288,7 @@ export default function CreateCircle() {
             values.isPublic,
             circleId
           );
+          window.localStorage.removeItem(pendingMetadataKey(circleId));
           const inviteResponse = await api.generateInviteCode(circleAddress, 720);
           setInviteLink(`/join/${inviteResponse.shortCode || circleId}`);
         } catch (apiError) {

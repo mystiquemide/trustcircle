@@ -41,6 +41,29 @@ interface CircleData {
 
 type Contributions = Record<string, boolean>;
 const isAddressParam = (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value);
+const pendingMetadataKey = (circleId: string) => `trustcircle_pending_circle_metadata_${circleId}`;
+
+const loadPendingCircleMetadata = (circleId: string) => {
+  if (!circleId || isAddressParam(circleId)) {
+    return null;
+  }
+
+  try {
+    const rawMetadata = window.localStorage.getItem(pendingMetadataKey(circleId));
+    if (!rawMetadata) {
+      return null;
+    }
+
+    return JSON.parse(rawMetadata) as {
+      name?: string;
+      description?: string;
+      isPublic?: boolean;
+      circleId?: number;
+    };
+  } catch {
+    return null;
+  }
+};
 
 export default function CircleDetail() {
   const { circleId = '' } = useParams<{ circleId: string }>();
@@ -256,12 +279,30 @@ export default function CircleDetail() {
         }
         setPayoutOrder(order);
 
+        const pendingMetadata = loadPendingCircleMetadata(circleId);
+        const metadataName = pendingMetadata?.name || (name as string);
+        const metadataDescription =
+          pendingMetadata?.description || `${Number(memberCount)} members, ${statusLabel} circle`;
+        const metadataCircleId =
+          typeof pendingMetadata?.circleId === 'number'
+            ? pendingMetadata.circleId
+            : !isAddressParam(circleId) && /^\d+$/.test(circleId)
+              ? Number(circleId)
+              : undefined;
+
         void api
           .saveCircleMetadata(
             address,
-            name as string,
-            `${Number(memberCount)} members, ${statusLabel} circle`
+            metadataName,
+            metadataDescription,
+            pendingMetadata?.isPublic,
+            metadataCircleId
           )
+          .then(() => {
+            if (pendingMetadata) {
+              window.localStorage.removeItem(pendingMetadataKey(circleId));
+            }
+          })
           .catch((error) => {
             console.warn('Failed to sync metadata:', error);
           });
